@@ -5,7 +5,8 @@ resources:
 - web.yaml
 - api.yaml
 - db.yaml
-  # CI updates newTag after each build on main.
+- google.sealed.yaml
+# CI updates newTag after each build on main.
 images:
 - name: ghcr.io/sobczykm/maiday-api
   newTag: sha-2d2c7a7
