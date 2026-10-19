@@ -12,7 +12,7 @@
 ## Struktura repo (monorepo)
 
 ```
-app/web/          frontend: index.html (cała aplikacja), auth-bg.webp, Dockerfile (nginx-unprivileged), nginx.conf
+app/web/          frontend: Dockerfile (nginx-unprivileged), nginx.conf (cache, ścisła CSP); public/ = to, co serwuje nginx: index.html (cała aplikacja), auth-bg.webp, fonts/ (Google Fonts latin+latin-ext, self-hosted), vendor/lucide-1.48.0.min.js
 app/api/          API w Go (stdlib net/http + pgx + x/oauth2), Dockerfile (distroless); schemat w schema.sql, migracja przy starcie
 infra/bootstrap/  jednorazowo ręcznie: Argo CD + root Application  →  kubectl apply -k infra/bootstrap --server-side
                   (Argo nie zainstaluje sam siebie; potem zarządza tym katalogiem przez Application "argocd")
@@ -60,10 +60,10 @@ infra/apps/<app>/ manifesty aplikacji (Kustomize); ApplicationSet tworzy z katal
 - Traefik ma Service LoadBalancer (DO LB ~12 $/m-c), IP 134.199.190.18 (stałe, dopóki istnieje Service Traefika; usunięcie go zmieni IP i wymaga poprawki DNS w OVH).
 - Lokalnie: Mac arm64 → obrazy budować dla `linux/amd64`. kubectl 1.34 jest za stary dla serwera 1.37; helm i gh niezainstalowane.
 
-## Aplikacja (`app/web/index.html`)
+## Aplikacja (`app/web/public/index.html`)
 
 - Jeden plik ~706 KB (w tym ~282 KB base64 tła logowania w CSS), bez frameworka i bez builda. Obok `auth-bg.webp` (1,45 MB) ładowany względnym URL-em z `.auth`.
-- Zależności z CDN: Google Fonts, `lucide@1.48.0` z jsDelivr (bez SRI). Aplikacja działa bez nich (fallbacki).
+- Bez zależności zewnętrznych: fonty z `fonts/fonts.css`, Lucide z `vendor/` (sprawdzony shasum paczki npm). Wersja Julii z Claude ładuje je z Google Fonts / jsDelivr — przy jej nowych wersjach trzeba podmienić te dwa odwołania (razem z adapterem API).
 - **Źródłem prawdy jest wersja Julii w Claude.** Na razie `index.html` w repo ma nasz adapter API (patrz niżej), którego jej wersja nie zna — przy kolejnej wersji od Julii trzeba go przenieść albo dodać u źródła.
 - **Adapter API (w `index.html`):** `connect()` poza Claude woła `connectApi()`: `GET /api/me` (401 → ekran logowania `showAuth`), `PROFILE` z konta + `paintProfile()`, `GET /api/items` do `S`, a `refs[c].doc(id).set/delete` mapowane na `PUT`/`DELETE /api/items/...` — dzięki temu `enqueue`, `put`, `del` i `applyBackup` działają bez zmian. Odświeżenie danych przy powrocie do karty (bez realtime). Pliki: `assetsApi` = `apiAssets` (`POST /api/assets`, `DELETE /api/assets/{id}`), `blobUrl()` bez zmian (`/_blob/<id>`). Przycisk Google → `/api/auth/login`, „Wyloguj” → `POST /api/auth/logout` + reload. Kody błędów z `api()`: `unavailable`, `unauthenticated`, `rejected` (nigdy `invalid_argument`).
 - Zapis dziś: poza Claude localStorage (`maiday.v1`, cały stan jako jeden JSON); w Claude `window.claude.use('db'|'user'|'assets'|'downloads')` w kształcie Firestore (`db.doc(path).collection(c).doc(id).set/delete`, `onSnapshot` zwraca całą kolekcję).
@@ -81,8 +81,8 @@ infra/apps/<app>/ manifesty aplikacji (Kustomize); ApplicationSet tworzy z katal
 ## Ryzyka do pamiętania
 
 - SVG z tej samej domeny = XSS: `/_blob` serwuje SVG z CSP `sandbox` i wszystko z `nosniff` (zrobione).
-- CSP wymaga `'unsafe-inline'` (inline script/style); na razie tylko Report-Only w `nginx.conf`.
-- Aplikacja publiczna → RODO: regulamin i polityka prywatności (linki w ekranie logowania to dziś `#`), Google Fonts przekazują IP (rozważyć self-hosting fontów i Lucide).
+- CSP wymuszana w `nginx.conf`: tylko `'self'` (+ `'unsafe-inline'` dla script/style, `data:`/`blob:` dla obrazów). Nowy zewnętrzny zasób w `index.html` trzeba albo hostować u siebie, albo dopisać do CSP.
+- Aplikacja publiczna → RODO: regulamin i polityka prywatności (linki w ekranie logowania to dziś `#`); brak funkcji „usuń konto”.
 - `dropAssets` jest best-effort → osierocone pliki w magazynie, przyda się GC.
 
 ## Etapy
