@@ -41,9 +41,14 @@ func run() error {
 		return fmt.Errorf("migrate: %w", err)
 	}
 
+	blobs, err := newBlobs(cfg)
+	if err != nil {
+		return fmt.Errorf("file storage: %w", err)
+	}
+
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           newServer(cfg, store).routes(),
+		Handler:           newServer(cfg, store, blobs).routes(),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
@@ -54,7 +59,7 @@ func run() error {
 		srv.Shutdown(shutdownCtx)
 	}()
 
-	slog.Info("api listening", "port", cfg.Port, "google_sign_in", cfg.GoogleSignInEnabled())
+	slog.Info("api listening", "port", cfg.Port, "google_sign_in", cfg.GoogleSignInEnabled(), "file_storage", cfg.FileStorageEnabled())
 	if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}

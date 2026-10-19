@@ -22,3 +22,13 @@ CREATE TABLE IF NOT EXISTS items (
     updated_at timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (user_id, collection, id)
 );
+
+CREATE TABLE IF NOT EXISTS assets (
+    id           text PRIMARY KEY,
+    user_id      text NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    content_type text NOT NULL,
+    size_bytes   bigint NOT NULL,
+    created_at   timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS assets_user_id ON assets (user_id);

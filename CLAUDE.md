@@ -34,16 +34,16 @@ infra/apps/<app>/ manifesty aplikacji (Kustomize); ApplicationSet tworzy z katal
 - **Sekrety:** Sealed Secrets.
 - **Ingress:** Traefik (ingress-nginx jest wycofany). Jeden LoadBalancer na klaster.
 - **Domena:** `maiday.julqaj.com`. DNS w OVH (ręcznie, poza GitOps): rekord A → IP LoadBalancera Traefika. TLS z Let's Encrypt przez cert-manager (ClusterIssuer `letsencrypt`, HTTP-01, bez e-maila), HTTP → HTTPS przez middleware Traefika `maiday/redirect-https`.
-- **Pliki:** S3-kompatybilny magazyn (docelowo Cloudflare R2; konta Cloudflare jeszcze nie ma).
+- **Pliki:** DigitalOcean Spaces, bucket `maiday-bckt` w `fra1` (prywatny, 5 $/m-c za konto). Klucze w SealedSecret `maiday-s3`.
 - **Migracja z Claude:** import kopii JSON; pliki Julii nie są ważne, nie przenosimy ich.
 - Kolejne komponenty (monitoring, magazyn plików) dodajemy dopiero, gdy są potrzebne.
 
 ## API (`app/api`)
 
-- Endpointy: `GET /api/items` (wszystkie 8 kolekcji), `PUT|DELETE /api/items/{kolekcja}/{id}` (body = obiekt z tym samym `id`, max 1 MB), `GET /api/auth/login`, `GET /api/auth/callback`, `POST /api/auth/logout`, `GET /api/me`, `GET /healthz`. Błędy jako `{"error": "..."}`.
-- Tabele: `users` (id = Google `sub`), `sessions` (sha256 tokena z cookie `maiday_session`, 30 dni), `items`.
+- Endpointy: `GET /api/items` (wszystkie 8 kolekcji), `PUT|DELETE /api/items/{kolekcja}/{id}` (body = obiekt z tym samym `id`, max 1 MB), `POST /api/assets` (surowe body pliku, `Content-Type` z listy, limit 20 MB / SVG 2 MB, 1 GB na użytkownika), `DELETE /api/assets/{id}`, `GET /_blob/{id}` (tylko właściciel, stream z S3; `nosniff`, SVG z CSP `sandbox`), `GET /api/auth/login`, `GET /api/auth/callback`, `POST /api/auth/logout`, `GET /api/me`, `GET /healthz`. Błędy jako `{"error": "..."}`.
+- Tabele: `users` (id = Google `sub`), `sessions` (sha256 tokena z cookie `maiday_session`, 30 dni), `items`, `assets` (metadane plików; obiekt w buckecie pod kluczem `<user_id>/<asset_id>`).
 - Ochrona CSRF: cookie `SameSite=Lax` + `http.CrossOriginProtection`. `Secure` cookies, gdy `BASE_URL` zaczyna się od https.
-- Env: `DATABASE_URL` (z sekretu CNPG `maiday-db-app`), `BASE_URL` (`https://maiday.julqaj.com`), `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` z SealedSecret `maiday-google` (opcjonalny; bez niego logowanie zwraca 503).
+- Env: `DATABASE_URL` (z sekretu CNPG `maiday-db-app`), `BASE_URL` (`https://maiday.julqaj.com`), `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` (SealedSecret `maiday-google`), `S3_ENDPOINT`/`S3_BUCKET` (+ opcjonalnie `S3_REGION`) i `S3_ACCESS_KEY_ID`/`S3_SECRET_ACCESS_KEY` (SealedSecret `maiday-s3`). Brak sekretu = funkcja wyłączona (503).
 - Ingress `maiday` (`infra/apps/maiday/ingress.yaml`): host `maiday.julqaj.com`, `/api` → api, reszta → web. Google OAuth redirect URI: `https://maiday.julqaj.com/api/auth/callback`.
 
 ## Klaster
@@ -58,7 +58,7 @@ infra/apps/<app>/ manifesty aplikacji (Kustomize); ApplicationSet tworzy z katal
 - Jeden plik ~706 KB (w tym ~282 KB base64 tła logowania w CSS), bez frameworka i bez builda. Obok `auth-bg.webp` (1,45 MB) ładowany względnym URL-em z `.auth`.
 - Zależności z CDN: Google Fonts, `lucide@1.48.0` z jsDelivr (bez SRI). Aplikacja działa bez nich (fallbacki).
 - **Źródłem prawdy jest wersja Julii w Claude.** Na razie `index.html` w repo ma nasz adapter API (patrz niżej), którego jej wersja nie zna — przy kolejnej wersji od Julii trzeba go przenieść albo dodać u źródła.
-- **Adapter API (w `index.html`):** `connect()` poza Claude woła `connectApi()`: `GET /api/me` (401 → ekran logowania `showAuth`), `PROFILE` z konta + `paintProfile()`, `GET /api/items` do `S`, a `refs[c].doc(id).set/delete` mapowane na `PUT`/`DELETE /api/items/...` — dzięki temu `enqueue`, `put`, `del` i `applyBackup` działają bez zmian. Odświeżenie danych przy powrocie do karty (bez realtime). Przycisk Google → `/api/auth/login`, „Wyloguj” → `POST /api/auth/logout` + reload. Kody błędów z `api()`: `unavailable`, `unauthenticated`, `rejected` (nigdy `invalid_argument`).
+- **Adapter API (w `index.html`):** `connect()` poza Claude woła `connectApi()`: `GET /api/me` (401 → ekran logowania `showAuth`), `PROFILE` z konta + `paintProfile()`, `GET /api/items` do `S`, a `refs[c].doc(id).set/delete` mapowane na `PUT`/`DELETE /api/items/...` — dzięki temu `enqueue`, `put`, `del` i `applyBackup` działają bez zmian. Odświeżenie danych przy powrocie do karty (bez realtime). Pliki: `assetsApi` = `apiAssets` (`POST /api/assets`, `DELETE /api/assets/{id}`), `blobUrl()` bez zmian (`/_blob/<id>`). Przycisk Google → `/api/auth/login`, „Wyloguj” → `POST /api/auth/logout` + reload. Kody błędów z `api()`: `unavailable`, `unauthenticated`, `rejected` (nigdy `invalid_argument`).
 - Zapis dziś: poza Claude localStorage (`maiday.v1`, cały stan jako jeden JSON); w Claude `window.claude.use('db'|'user'|'assets'|'downloads')` w kształcie Firestore (`db.doc(path).collection(c).doc(id).set/delete`, `onSnapshot` zwraca całą kolekcję).
 - Punkty podmiany (szukaj po nazwie): `connect`, `enqueue`, `put`, `del`, `upload`, `dropAssets`, `blobUrl` (`'/_blob/' + id`), `downloadAsset`, `applyBackup` (woła `enqueue` bezpośrednio), `PROFILE`, `showAuth`/`hideAuth`/`#auth-google`, teksty o „wersji w Claude”, stopka „Zapisano w tej przeglądarce”.
 - `connect()` przy pierwszym połączeniu sam przenosi dane z localStorage na konto i czyści `maiday.v1`.
@@ -73,7 +73,7 @@ infra/apps/<app>/ manifesty aplikacji (Kustomize); ApplicationSet tworzy z katal
 
 ## Ryzyka do pamiętania
 
-- SVG z tej samej domeny = XSS; pliki serwować z `nosniff` i `Content-Security-Policy: sandbox` (lub jako attachment).
+- SVG z tej samej domeny = XSS: `/_blob` serwuje SVG z CSP `sandbox` i wszystko z `nosniff` (zrobione).
 - CSP wymaga `'unsafe-inline'` (inline script/style); na razie tylko Report-Only w `nginx.conf`.
 - Aplikacja publiczna → RODO: regulamin i polityka prywatności (linki w ekranie logowania to dziś `#`), Google Fonts przekazują IP (rozważyć self-hosting fontów i Lucide).
 - `dropAssets` jest best-effort → osierocone pliki w magazynie, przyda się GC.
@@ -88,5 +88,4 @@ infra/apps/<app>/ manifesty aplikacji (Kustomize); ApplicationSet tworzy z katal
 ## Otwarte decyzje
 
 - Jak współpracujemy z Julią przy `index.html`. Pomysł: skill dla jej Claude, który po każdej zmianie wysyła nową wersję do repo (gałąź `claude` → preview, merge do `main`), bez odciągania jej uwagi od projektowania i z zachowaniem adaptera API.
-- Magazyn plików: Cloudflare R2, DO Spaces czy inny S3.
 - Czy produkcja zostaje na DOKS, czy później k3s na VPS.

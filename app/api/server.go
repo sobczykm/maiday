@@ -10,13 +10,15 @@ import (
 
 type server struct {
 	store         *Store
+	blobs         *Blobs
 	google        *oauth2.Config
 	secureCookies bool
 }
 
-func newServer(cfg Config, store *Store) *server {
+func newServer(cfg Config, store *Store, blobs *Blobs) *server {
 	return &server{
 		store:         store,
+		blobs:         blobs,
 		google:        newGoogleOAuth(cfg),
 		secureCookies: cfg.SecureCookies(),
 	}
@@ -35,6 +37,10 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("GET /api/items", s.withUser(s.listItems))
 	mux.HandleFunc("PUT /api/items/{collection}/{id}", s.withUser(s.putItem))
 	mux.HandleFunc("DELETE /api/items/{collection}/{id}", s.withUser(s.deleteItem))
+
+	mux.HandleFunc("POST /api/assets", s.withUser(s.uploadAsset))
+	mux.HandleFunc("DELETE /api/assets/{id}", s.withUser(s.deleteAsset))
+	mux.HandleFunc("GET /_blob/{id}", s.withUser(s.serveAsset))
 
 	return http.NewCrossOriginProtection().Handler(mux)
 }

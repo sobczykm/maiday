@@ -2611,12 +2611,25 @@ html.auth-open, html.auth-open body { overflow: hidden; }
     for (const c of COLLS) S[c] = new Map((data[c] || []).map(x => [x.id, x]));
   }
   const writesInFlight = () => [...queue.values()].some(q => q.running);
+  const UPLOAD_ERRORS = { 401: 'unauthenticated', 411: 'unsupported_type', 413: 'too_large', 415: 'unsupported_type', 507: 'quota_or_state' };
+  const apiAssets = {
+    async upload(file, { type }) {
+      let res;
+      try { res = await fetch('/api/assets', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': type }, body: file }); }
+      catch (e) { throw { code: 'store_unavailable' }; }
+      if (!res.ok) throw { code: UPLOAD_ERRORS[res.status] || 'store_unavailable' };
+      return res.json();
+    },
+    delete: id => api('DELETE', '/api/assets/' + encodeURIComponent(id))
+  };
   async function connectApi() {
     let me;
     try { me = await api('GET', '/api/me'); }
     catch (e) { if (e.code === 'unauthenticated') showAuth(); return; }
     Object.assign(PROFILE, { name: me.name || me.email, email: me.email });
     paintProfile();
+    assetsApi = apiAssets;
+    updateUploadUI();
 
     const pending = {}; for (const c of COLLS) pending[c] = [...S[c].values()];
     refs = {}; for (const c of COLLS) refs[c] = apiCollection(c);

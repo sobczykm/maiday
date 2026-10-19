@@ -102,6 +102,40 @@ func (s *Store) DeleteItem(ctx context.Context, userID, collection, id string) e
 	return err
 }
 
+type Asset struct {
+	ID          string
+	UserID      string
+	ContentType string
+	SizeBytes   int64
+}
+
+func (s *Store) AssetsSize(ctx context.Context, userID string) (int64, error) {
+	var total int64
+	err := s.db.QueryRow(ctx, `SELECT coalesce(sum(size_bytes), 0) FROM assets WHERE user_id = $1`, userID).Scan(&total)
+	return total, err
+}
+
+func (s *Store) CreateAsset(ctx context.Context, a Asset) error {
+	_, err := s.db.Exec(ctx, `INSERT INTO assets (id, user_id, content_type, size_bytes) VALUES ($1, $2, $3, $4)`,
+		a.ID, a.UserID, a.ContentType, a.SizeBytes)
+	return err
+}
+
+func (s *Store) Asset(ctx context.Context, userID, id string) (Asset, error) {
+	a := Asset{ID: id, UserID: userID}
+	err := s.db.QueryRow(ctx, `SELECT content_type, size_bytes FROM assets WHERE user_id = $1 AND id = $2`,
+		userID, id).Scan(&a.ContentType, &a.SizeBytes)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Asset{}, ErrNotFound
+	}
+	return a, err
+}
+
+func (s *Store) DeleteAsset(ctx context.Context, userID, id string) (deleted bool, err error) {
+	tag, err := s.db.Exec(ctx, `DELETE FROM assets WHERE user_id = $1 AND id = $2`, userID, id)
+	return tag.RowsAffected() > 0, err
+}
+
 func hashToken(token string) []byte {
 	sum := sha256.Sum256([]byte(token))
 	return sum[:]
