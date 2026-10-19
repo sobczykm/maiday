@@ -1,0 +1,9 @@
+# One-time, manual: kubectl apply -k infra/bootstrap --server-side
+# Installs Argo CD and the root Application; everything else is synced from Git.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: argocd
+resources:
+  - namespace.yaml
+  - https://raw.githubusercontent.com/argoproj/argo-cd/v3.4.11/manifests/install.yaml
+  - root.yaml

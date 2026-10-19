@@ -1,0 +1,4 @@
+.DS_Store
+# Plain (unsealed) secrets must never be committed; only SealedSecret manifests go to Git.
+*.secret.yaml
+.env
