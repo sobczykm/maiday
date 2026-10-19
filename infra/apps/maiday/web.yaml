@@ -43,27 +43,3 @@ spec:
   ports:
     - port: 80
       targetPort: 8080
----
-# No host yet (no domain): served on the Traefik LoadBalancer IP over HTTP.
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: web
-spec:
-  rules:
-    - http:
-        paths:
-          - path: /api
-            pathType: Prefix
-            backend:
-              service:
-                name: api
-                port:
-                  number: 80
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: web
-                port:
-                  number: 80

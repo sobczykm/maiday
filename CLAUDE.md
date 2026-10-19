@@ -16,7 +16,8 @@ app/web/          frontend: index.html (cała aplikacja), auth-bg.webp, Dockerfi
 app/api/          API w Go (stdlib net/http + pgx + x/oauth2), Dockerfile (distroless); schemat w schema.sql, migracja przy starcie
 infra/bootstrap/  jednorazowo ręcznie: Argo CD + root Application  →  kubectl apply -k infra/bootstrap --server-side
                   (Argo nie zainstaluje sam siebie; potem zarządza tym katalogiem przez Application "argocd")
-infra/argocd/     Applications zarządzane przez root (app of apps): argocd (self-managed), traefik, metrics-server, sealed-secrets, cnpg (operator), ApplicationSet "apps"
+infra/argocd/     Applications zarządzane przez root (app of apps): argocd (self-managed), traefik, metrics-server, sealed-secrets, cnpg (operator), cert-manager, ApplicationSet "apps"
+infra/platform/   konfiguracja komponentów platformy z Gita (np. cert-manager/cluster-issuer.yaml), dołączana jako drugie źródło Application
 infra/apps/<app>/ manifesty aplikacji (Kustomize); ApplicationSet tworzy z katalogu Application w namespace o tej samej nazwie
 .github/workflows/image.yml  wspólny: build obrazu ghcr.io/sobczykm/maiday-<name> (linux/amd64) + `kustomize edit set image` + commit (Argo wdraża)
 .github/workflows/web.yml, api.yml  wywołują image.yml po zmianach w app/web / app/api (api najpierw go vet + build)
@@ -32,24 +33,24 @@ infra/apps/<app>/ manifesty aplikacji (Kustomize); ApplicationSet tworzy z katal
 - **Auth:** tylko Google (OIDC w API, sesja w httpOnly cookie). E-mail/Apple z notatki Julii odrzucone na razie.
 - **Sekrety:** Sealed Secrets.
 - **Ingress:** Traefik (ingress-nginx jest wycofany). Jeden LoadBalancer na klaster.
-- **Domena:** jeszcze brak. Na razie test po IP LoadBalancera (HTTP). HTTPS + cert-manager po zakupie domeny; do testów ewentualnie sslip.io. Google OAuth wymaga HTTPS i domeny publicznej.
+- **Domena:** `maiday.julqaj.com`. DNS w OVH (ręcznie, poza GitOps): rekord A → IP LoadBalancera Traefika. TLS z Let's Encrypt przez cert-manager (ClusterIssuer `letsencrypt`, HTTP-01, bez e-maila), HTTP → HTTPS przez middleware Traefika `maiday/redirect-https`.
 - **Pliki:** S3-kompatybilny magazyn (docelowo Cloudflare R2; konta Cloudflare jeszcze nie ma).
 - **Migracja z Claude:** import kopii JSON; pliki Julii nie są ważne, nie przenosimy ich.
-- Kolejne komponenty (cert-manager, Sealed Secrets, CNPG, monitoring) dodajemy dopiero, gdy są potrzebne.
+- Kolejne komponenty (monitoring, magazyn plików) dodajemy dopiero, gdy są potrzebne.
 
 ## API (`app/api`)
 
 - Endpointy: `GET /api/items` (wszystkie 8 kolekcji), `PUT|DELETE /api/items/{kolekcja}/{id}` (body = obiekt z tym samym `id`, max 1 MB), `GET /api/auth/login`, `GET /api/auth/callback`, `POST /api/auth/logout`, `GET /api/me`, `GET /healthz`. Błędy jako `{"error": "..."}`.
 - Tabele: `users` (id = Google `sub`), `sessions` (sha256 tokena z cookie `maiday_session`, 30 dni), `items`.
 - Ochrona CSRF: cookie `SameSite=Lax` + `http.CrossOriginProtection`. `Secure` cookies, gdy `BASE_URL` zaczyna się od https.
-- Env: `DATABASE_URL` (z sekretu CNPG `maiday-db-app`), `BASE_URL` (na razie `http://localhost:8080`), `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` z SealedSecret `maiday-google` (opcjonalny; bez niego logowanie zwraca 503).
-- Ingress: `/api` → api, reszta → web. Test logowania: `kubectl -n traefik port-forward svc/traefik 8080:80`, Google OAuth redirect URI `http://localhost:8080/api/auth/callback`.
+- Env: `DATABASE_URL` (z sekretu CNPG `maiday-db-app`), `BASE_URL` (`https://maiday.julqaj.com`), `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` z SealedSecret `maiday-google` (opcjonalny; bez niego logowanie zwraca 503).
+- Ingress `maiday` (`infra/apps/maiday/ingress.yaml`): host `maiday.julqaj.com`, `/api` → api, reszta → web. Google OAuth redirect URI: `https://maiday.julqaj.com/api/auth/callback`.
 
 ## Klaster
 
 - DigitalOcean DOKS `fra1`, Kubernetes 1.37, kontekst `do-fra1-k8s-1-37-0-do-1-fra1-1792447752898`, HA control plane wyłączone, auto-upgrade wyłączony.
 - Pula: **1 × s-2vcpu-4gb** (amd64, ~3 GB allocatable). Decyzja: zostajemy na jednym węźle (bez HA; brak miejsca na własny Prometheus — monitoring na zewnątrz). Każdy LoadBalancer i PVC kosztuje osobno.
-- Traefik ma Service LoadBalancer (DO LB ~12 $/m-c), IP 134.199.190.18 — Maiday działa na http://134.199.190.18 (tryb localStorage).
+- Traefik ma Service LoadBalancer (DO LB ~12 $/m-c), IP 134.199.190.18 (stałe, dopóki istnieje Service Traefika; usunięcie go zmieni IP i wymaga poprawki DNS w OVH).
 - Lokalnie: Mac arm64 → obrazy budować dla `linux/amd64`. kubectl 1.34 jest za stary dla serwera 1.37; helm i gh niezainstalowane.
 
 ## Aplikacja (`app/web/index.html`)
@@ -87,5 +88,5 @@ infra/apps/<app>/ manifesty aplikacji (Kustomize); ApplicationSet tworzy z katal
 ## Otwarte decyzje
 
 - Jak współpracujemy z Julią przy `index.html` (czy dodaje hooki/adapter u siebie).
-- Domena; Cloudflare (DNS/Tunnel/R2) czy inny magazyn plików.
+- Magazyn plików: Cloudflare R2, DO Spaces czy inny S3.
 - Czy produkcja zostaje na DOKS, czy później k3s na VPS.

@@ -5,6 +5,7 @@ resources:
 - web.yaml
 - api.yaml
 - db.yaml
+- ingress.yaml
 - google.sealed.yaml
 # CI updates newTag after each build on main.
 images:

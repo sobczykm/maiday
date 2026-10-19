@@ -1,0 +1,43 @@
+# TLS certificates from Let's Encrypt for every Ingress annotated with cert-manager.io/cluster-issuer.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cert-manager
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://charts.jetstack.io
+      chart: cert-manager
+      targetRevision: v1.21.2
+      helm:
+        valuesObject:
+          crds:
+            enabled: true
+          resources:
+            requests: { cpu: 10m, memory: 48Mi }
+            limits: { memory: 128Mi }
+          webhook:
+            resources:
+              requests: { cpu: 10m, memory: 24Mi }
+              limits: { memory: 64Mi }
+          cainjector:
+            resources:
+              requests: { cpu: 10m, memory: 48Mi }
+              limits: { memory: 128Mi }
+    - repoURL: https://github.com/sobczykm/maiday.git
+      targetRevision: main
+      path: infra/platform/cert-manager
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      limit: 10
+      backoff: { duration: 30s, factor: 2, maxDuration: 5m }
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

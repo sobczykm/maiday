@@ -20,7 +20,7 @@ spec:
             - containerPort: 8080
           env:
             - name: BASE_URL
-              value: http://localhost:8080
+              value: https://maiday.julqaj.com
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef: { name: maiday-db-app, key: uri }
