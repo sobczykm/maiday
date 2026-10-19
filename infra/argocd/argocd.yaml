@@ -1,0 +1,23 @@
+# Argo CD manages itself: after the one-time bootstrap, upgrades and config changes
+# are made in infra/bootstrap/ and synced from Git like everything else.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argocd
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/sobczykm/maiday.git
+    targetRevision: main
+    path: infra/bootstrap
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      # no prune: a bad commit must not be able to delete Argo CD itself
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true

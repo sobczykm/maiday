@@ -15,12 +15,13 @@
 app/web/          frontend: index.html (cała aplikacja), auth-bg.webp, Dockerfile (nginx-unprivileged), nginx.conf
 app/api/          (do zrobienia) API w Go
 infra/bootstrap/  jednorazowo ręcznie: Argo CD + root Application  →  kubectl apply -k infra/bootstrap --server-side
-infra/argocd/     Applications zarządzane przez root (app of apps): traefik, ApplicationSet "apps"
+                  (Argo nie zainstaluje sam siebie; potem zarządza tym katalogiem przez Application "argocd")
+infra/argocd/     Applications zarządzane przez root (app of apps): argocd (self-managed), traefik, ApplicationSet "apps"
 infra/apps/<app>/ manifesty aplikacji (Kustomize); ApplicationSet tworzy z katalogu Application w namespace o tej samej nazwie
 .github/workflows/web.yml  build obrazu ghcr.io/sobczykm/maiday-web (linux/amd64) + commit nowego taga do infra/apps/maiday/kustomization.yaml
 ```
 
-- Repo GitHub zakładane jako `github.com/sobczykm/maiday` (publiczne, żeby Argo CD nie potrzebował poświadczeń). Do potwierdzenia.
+- Repo GitHub: `github.com/sobczykm/maiday`, publiczne (Argo CD nie potrzebuje poświadczeń; w Gicie tylko SealedSecrets, nigdy jawne sekrety).
 - Pakiet GHCR `maiday-web` musi być publiczny (albo imagePullSecret).
 - Wersje przypięte: Argo CD v3.4.11, chart Traefik 41.7.1, nginx-unprivileged 1.30.6-alpine.
 
@@ -75,7 +76,6 @@ infra/apps/<app>/ manifesty aplikacji (Kustomize); ApplicationSet tworzy z katal
 
 ## Otwarte decyzje
 
-- Nazwa i widoczność repo na GitHubie.
 - Jak współpracujemy z Julią przy `index.html` (czy dodaje hooki/adapter u siebie).
 - Drugi węzeł czy większy węzeł.
 - Domena; Cloudflare (DNS/Tunnel/R2) czy inny magazyn plików.
