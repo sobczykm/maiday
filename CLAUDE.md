@@ -13,12 +13,13 @@
 
 ```
 app/web/          frontend: index.html (cała aplikacja), auth-bg.webp, Dockerfile (nginx-unprivileged), nginx.conf
-app/api/          (do zrobienia) API w Go
+app/api/          API w Go (stdlib net/http + pgx + x/oauth2), Dockerfile (distroless); schemat w schema.sql, migracja przy starcie
 infra/bootstrap/  jednorazowo ręcznie: Argo CD + root Application  →  kubectl apply -k infra/bootstrap --server-side
                   (Argo nie zainstaluje sam siebie; potem zarządza tym katalogiem przez Application "argocd")
 infra/argocd/     Applications zarządzane przez root (app of apps): argocd (self-managed), traefik, metrics-server, sealed-secrets, cnpg (operator), ApplicationSet "apps"
 infra/apps/<app>/ manifesty aplikacji (Kustomize); ApplicationSet tworzy z katalogu Application w namespace o tej samej nazwie
-.github/workflows/web.yml  build obrazu ghcr.io/sobczykm/maiday-web (linux/amd64) + commit nowego taga do infra/apps/maiday/kustomization.yaml
+.github/workflows/image.yml  wspólny: build obrazu ghcr.io/sobczykm/maiday-<name> (linux/amd64) + `kustomize edit set image` + commit (Argo wdraża)
+.github/workflows/web.yml, api.yml  wywołują image.yml po zmianach w app/web / app/api (api najpierw go vet + build)
 ```
 
 - Repo GitHub: `github.com/sobczykm/maiday`, publiczne (Argo CD nie potrzebuje poświadczeń; w Gicie tylko SealedSecrets, nigdy jawne sekrety).
@@ -35,6 +36,14 @@ infra/apps/<app>/ manifesty aplikacji (Kustomize); ApplicationSet tworzy z katal
 - **Pliki:** S3-kompatybilny magazyn (docelowo Cloudflare R2; konta Cloudflare jeszcze nie ma).
 - **Migracja z Claude:** import kopii JSON; pliki Julii nie są ważne, nie przenosimy ich.
 - Kolejne komponenty (cert-manager, Sealed Secrets, CNPG, monitoring) dodajemy dopiero, gdy są potrzebne.
+
+## API (`app/api`)
+
+- Endpointy: `GET /api/items` (wszystkie 8 kolekcji), `PUT|DELETE /api/items/{kolekcja}/{id}` (body = obiekt z tym samym `id`, max 1 MB), `GET /api/auth/login`, `GET /api/auth/callback`, `POST /api/auth/logout`, `GET /api/me`, `GET /healthz`. Błędy jako `{"error": "..."}`.
+- Tabele: `users` (id = Google `sub`), `sessions` (sha256 tokena z cookie `maiday_session`, 30 dni), `items`.
+- Ochrona CSRF: cookie `SameSite=Lax` + `http.CrossOriginProtection`. `Secure` cookies, gdy `BASE_URL` zaczyna się od https.
+- Env: `DATABASE_URL` (z sekretu CNPG `maiday-db-app`), `BASE_URL` (na razie `http://localhost:8080`), `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` z SealedSecret `maiday-google` (opcjonalny; bez niego logowanie zwraca 503).
+- Ingress: `/api` → api, reszta → web. Test logowania: `kubectl -n traefik port-forward svc/traefik 8080:80`, Google OAuth redirect URI `http://localhost:8080/api/auth/callback`.
 
 ## Klaster
 

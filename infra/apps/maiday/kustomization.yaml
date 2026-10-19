@@ -3,8 +3,11 @@ kind: Kustomization
 namespace: maiday
 resources:
   - web.yaml
+  - api.yaml
   - db.yaml
 images:
-  # CI updates newTag after each build of app/web on main.
+  # CI updates newTag after each build on main.
   - name: ghcr.io/sobczykm/maiday-web
     newTag: sha-3617427
+  - name: ghcr.io/sobczykm/maiday-api
+    newTag: main

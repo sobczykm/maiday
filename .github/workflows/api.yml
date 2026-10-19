@@ -1,0 +1,28 @@
+name: api
+
+on:
+  push:
+    branches: [main]
+    paths: ['app/api/**', '.github/workflows/api.yml', '.github/workflows/image.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: app/api/go.mod
+      - working-directory: app/api
+        run: go vet ./... && go build ./...
+
+  image:
+    needs: test
+    uses: ./.github/workflows/image.yml
+    with:
+      name: api
