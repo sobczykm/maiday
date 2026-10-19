@@ -2540,6 +2540,7 @@ html.auth-open, html.auth-open body { overflow: hidden; }
             const code = e && e.code;
             if (code === 'unavailable' && tries++ < 1) { await new Promise(r => setTimeout(r, 400 + Math.random() * 600)); continue; }
             if (code === 'invalid_argument') { readOnly = true; setSync('err', 'Możesz przeglądać ten planer, ale nie możesz go zmieniać'); }
+            else if (code === 'unauthenticated') { setSync('err', 'Sesja wygasła. Zaloguj się ponownie, aby zapisać zmiany.'); showAuth(); }
             else if (code === 'quota_exceeded') setSync('err', 'Miejsce na dane jest pełne. Usuń stare zadania lub listy, aby zwolnić miejsce.');
             else setSync('err', 'Nie udało się zapisać ostatniej zmiany. Sprawdź połączenie i spróbuj ponownie.');
             break;
@@ -2560,8 +2561,9 @@ html.auth-open, html.auth-open body { overflow: hidden; }
     if (mode === 'local') saveLocal(); else enqueue(c, id, null);
   }
 
+  const inClaude = () => !!(window.claude && typeof window.claude.use === 'function');
   async function connect() {
-    if (!window.claude || typeof window.claude.use !== 'function') return;
+    if (!inClaude()) return connectApi();
     try {
       const [db, user, as] = await Promise.all([window.claude.use('db'), window.claude.use('user'), window.claude.use('assets').catch(() => null)]);
       assetsApi = as || null; updateUploadUI();
@@ -2589,6 +2591,54 @@ html.auth-open, html.auth-open body { overflow: hidden; }
         }, () => setSync('err', 'Utracono połączenie z zapisanymi danymi. Odśwież stronę, aby połączyć się ponownie.'));
       }
     } catch (e) { /* stay on browser storage */ }
+  }
+
+  // ---------- Maiday API (the app on its own domain) ----------
+  async function api(method, path, body) {
+    let res;
+    try {
+      res = await fetch(path, { method, credentials: 'same-origin', headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
+    } catch (e) { throw { code: 'unavailable' }; }
+    if (res.status === 401) throw { code: 'unauthenticated' };
+    if (res.status >= 500) throw { code: 'unavailable' };
+    if (!res.ok) throw { code: 'rejected', status: res.status };
+    return res.status === 204 ? null : res.json();
+  }
+  const itemPath = (c, id) => `/api/items/${c}/${encodeURIComponent(id)}`;
+  const apiCollection = c => ({ doc: id => ({ set: v => api('PUT', itemPath(c, id), v), delete: () => api('DELETE', itemPath(c, id)) }) });
+  async function loadFromApi() {
+    const data = await api('GET', '/api/items');
+    for (const c of COLLS) S[c] = new Map((data[c] || []).map(x => [x.id, x]));
+  }
+  const writesInFlight = () => [...queue.values()].some(q => q.running);
+  async function connectApi() {
+    let me;
+    try { me = await api('GET', '/api/me'); }
+    catch (e) { if (e.code === 'unauthenticated') showAuth(); return; }
+    Object.assign(PROFILE, { name: me.name || me.email, email: me.email });
+    paintProfile();
+
+    const pending = {}; for (const c of COLLS) pending[c] = [...S[c].values()];
+    refs = {}; for (const c of COLLS) refs[c] = apiCollection(c);
+    mode = 'db';
+    setSync('', 'Łączenie…');
+    try { await loadFromApi(); }
+    catch (e) { setSync('err', 'Nie udało się wczytać danych z konta. Odśwież stronę.'); return; }
+    // carry anything saved in this browser into the account once
+    for (const c of COLLS) for (const x of pending[c]) if (!S[c].has(x.id)) { S[c].set(x.id, x); enqueue(c, x.id, x); }
+    try { localStorage.removeItem(LS); } catch (e) {}
+    render();
+    setSync('ok', 'Zapisano na Twoim koncie · widoczne tylko dla Ciebie');
+
+    document.addEventListener('visibilitychange', async () => {
+      if (document.visibilityState !== 'visible' || writesInFlight()) return;
+      try { await loadFromApi(); render(); } catch (e) {}
+    });
+  }
+  async function logout() {
+    if (inClaude()) { showAuth(); return; }
+    try { await api('POST', '/api/auth/logout'); } catch (e) {}
+    location.reload();
   }
 
   // ---------- render ----------
@@ -3252,7 +3302,7 @@ html.auth-open, html.auth-open body { overflow: hidden; }
   }
   const isInlineImage = t => /^image\/(png|jpeg|gif|webp|svg\+xml)$/.test(t || '');
   async function upload(file) {
-    if (!assetsApi) { toast('Dodawanie zdjęć i plików działa w zapisanej wersji Maiday w Claude.'); return null; }
+    if (!assetsApi) { toast('Dodawanie zdjęć i plików będzie dostępne wkrótce.'); return null; }
     const type = typeOf(file);
     if (!type) { toast(`Nie można dodać „${file.name}”. ${SUPPORTED_MSG}`, 7000); return null; }
     busy(1);
@@ -3283,7 +3333,7 @@ html.auth-open, html.auth-open body { overflow: hidden; }
     document.querySelectorAll('.up').forEach(b => {
       b.disabled = !assetsApi;
       const nm = b.getAttribute('aria-label') || ((b.querySelector('.ff-lbl') || b).textContent || '').trim();
-      if (assetsApi) { if (nm) b.title = nm; else b.removeAttribute('title'); } else b.title = 'Zdjęcia i pliki działają w zapisanej wersji Maiday w Claude';
+      if (assetsApi) { if (nm) b.title = nm; else b.removeAttribute('title'); } else b.title = 'Zdjęcia i pliki będą dostępne wkrótce';
     });
   }
 
@@ -3340,7 +3390,7 @@ html.auth-open, html.auth-open body { overflow: hidden; }
     openPop(anchor, h('div', { class: 'pop-body' },
       h('span', { class: 'pop-title' }, 'Okładka'),
       h('div', { class: 'swatches' }, Object.entries(COVERS).map(([k, v]) => h('button', { type: 'button', style: 'background: ' + v, 'aria-label': 'Okładka: ' + COVER_PL[k], title: COVER_PL[k], onclick: () => { closePop(); onPick({ type: 'color', value: k }); } }))),
-      h('button', { class: 'btn up', type: 'button', 'aria-label': 'Wgraj zdjęcie', disabled: !assetsApi, title: assetsApi ? '' : 'Wgrywanie działa w zapisanej wersji Maiday w Claude', onclick: () => { closePop(); onUpload(); } }, 'Wgraj zdjęcie'),
+      h('button', { class: 'btn up', type: 'button', 'aria-label': 'Wgraj zdjęcie', disabled: !assetsApi, title: assetsApi ? '' : 'Wgrywanie zdjęć będzie dostępne wkrótce', onclick: () => { closePop(); onUpload(); } }, 'Wgraj zdjęcie'),
       current ? h('button', { class: 'textbtn', type: 'button', onclick: () => { closePop(); onPick(null); } }, 'Usuń okładkę') : null
     ), 'Wybierz okładkę');
   }
@@ -5384,7 +5434,7 @@ html.auth-open, html.auth-open body { overflow: hidden; }
       h('p', { class: 'meta' }, `Zapisz wszystkie dane Maiday (${plural(n, 'entry')}: zadania, nawyki, notatki, biblioteka, oferty) do pliku .json albo wczytaj wcześniej zapisaną kopię.`),
       h('button', { type: 'button', class: 'btn primary', onclick: () => { closePop(); exportBackup(); } }, 'Eksportuj dane'),
       h('button', { type: 'button', class: 'btn', disabled: readOnly, onclick: () => { closePop(); backupInput.click(); } }, 'Importuj dane'),
-      h('p', { class: 'meta backup-note' }, 'Zdjęcia i pliki (PDF, CV) nie są częścią kopii. Zostają zapisane tylko w wersji w Claude.')), 'Kopia zapasowa');
+      h('p', { class: 'meta backup-note' }, 'Zdjęcia i pliki (PDF, CV) nie są częścią kopii.')), 'Kopia zapasowa');
   }
   $('#backup-btn').addEventListener('click', e => openBackup(e.currentTarget));
 
@@ -5394,16 +5444,20 @@ html.auth-open, html.auth-open body { overflow: hidden; }
     h('span', { class: 'pf-ava', 'aria-hidden': 'true' }, luSvg('User', 1.9) || svg('<circle cx="8" cy="5.5" r="2.7" stroke="currentColor" stroke-width="1.4"/><path d="M3 13.5c.8-2.4 2.7-3.6 5-3.6s4.2 1.2 5 3.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>')),
     h('span', { class: 'pf-txt' }, h('b', {}, PROFILE.name), h('small', {}, PROFILE.email))];
   const pfBtn = $('#profile-btn');
-  pfBtn.replaceChildren(...profileBits());
-  pfBtn.setAttribute('aria-label', 'Profil: ' + PROFILE.name + ', ' + PROFILE.email);
-  pfBtn.title = PROFILE.name + ' · ' + PROFILE.email;
+  function paintProfile() {
+    pfBtn.replaceChildren(...profileBits());
+    pfBtn.setAttribute('aria-label', 'Profil: ' + PROFILE.name + ', ' + PROFILE.email);
+    pfBtn.title = PROFILE.name + ' · ' + PROFILE.email;
+    document.querySelector('.nav-profile')?.replaceChildren(...profileBits());
+  }
+  paintProfile();
   const logoutIcon = () => luSvg('LogOut', 1.9) || svg('<path d="M6 13.5H3.5a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1H6M10.5 11l3-3-3-3M13.5 8H6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>');
   pfBtn.addEventListener('click', e => {
     const b = e.currentTarget;
     if (!pop.hidden && popAnchor === b) { closePop(); b.setAttribute('aria-expanded', 'false'); return; }
     b.setAttribute('aria-expanded', 'true');
     openPop(b, h('div', { class: 'pf-pop', role: 'menu' },
-      h('button', { type: 'button', class: 'pf-logout', role: 'menuitem', onclick: () => { closePop(); b.setAttribute('aria-expanded', 'false'); showAuth('login'); } }, logoutIcon(), 'Wyloguj')), 'Profil');
+      h('button', { type: 'button', class: 'pf-logout', role: 'menuitem', onclick: () => { closePop(); b.setAttribute('aria-expanded', 'false'); logout(); } }, logoutIcon(), 'Wyloguj')), 'Profil');
     const lo = pop.querySelector('.pf-logout'); if (lo) lo.focus();
   });
 
@@ -5430,7 +5484,7 @@ html.auth-open, html.auth-open body { overflow: hidden; }
   }
   // slot for Google's official mark: the Google Identity Services button replaces this element at deployment
   $('#auth-google').prepend(h('span', { class: 'auth-g', 'aria-hidden': 'true' }));
-  $('#auth-google').addEventListener('click', hideAuth);
+  $('#auth-google').addEventListener('click', () => { if (inClaude()) hideAuth(); else location.href = '/api/auth/login'; });
 
   // ---- mobile hamburger menu ----
   const navMenu = $('#nav-menu'), burger = $('#nav-burger');
@@ -5447,7 +5501,7 @@ html.auth-open, html.auth-open body { overflow: hidden; }
     b.addEventListener('click', () => { closeNavMenu(false); openBackup(burger); });
     return b;
   })(),
-  h('button', { type: 'button', class: 'nav-item nav-logout', onclick: () => showAuth('login') }, logoutIcon(), h('span', {}, 'Wyloguj')));
+  h('button', { type: 'button', class: 'nav-item nav-logout', onclick: logout }, logoutIcon(), h('span', {}, 'Wyloguj')));
   function openNavMenu() {
     closePop(); closeMenu();
     document.documentElement.style.setProperty('--top-h', Math.round(document.querySelector('.topbar-inner').getBoundingClientRect().height + 1) + 'px');

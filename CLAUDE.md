@@ -57,10 +57,10 @@ infra/apps/<app>/ manifesty aplikacji (Kustomize); ApplicationSet tworzy z katal
 
 - Jeden plik ~706 KB (w tym ~282 KB base64 tła logowania w CSS), bez frameworka i bez builda. Obok `auth-bg.webp` (1,45 MB) ładowany względnym URL-em z `.auth`.
 - Zależności z CDN: Google Fonts, `lucide@1.48.0` z jsDelivr (bez SRI). Aplikacja działa bez nich (fallbacki).
-- **Źródłem prawdy jest wersja Julii w Claude** — jej pushe nadpisują plik. Zmiany w `index.html` (adapter, logowanie) trzeba uzgadniać z nią albo trzymać poza plikiem.
+- **Źródłem prawdy jest wersja Julii w Claude.** Na razie `index.html` w repo ma nasz adapter API (patrz niżej), którego jej wersja nie zna — przy kolejnej wersji od Julii trzeba go przenieść albo dodać u źródła.
+- **Adapter API (w `index.html`):** `connect()` poza Claude woła `connectApi()`: `GET /api/me` (401 → ekran logowania `showAuth`), `PROFILE` z konta + `paintProfile()`, `GET /api/items` do `S`, a `refs[c].doc(id).set/delete` mapowane na `PUT`/`DELETE /api/items/...` — dzięki temu `enqueue`, `put`, `del` i `applyBackup` działają bez zmian. Odświeżenie danych przy powrocie do karty (bez realtime). Przycisk Google → `/api/auth/login`, „Wyloguj” → `POST /api/auth/logout` + reload. Kody błędów z `api()`: `unavailable`, `unauthenticated`, `rejected` (nigdy `invalid_argument`).
 - Zapis dziś: poza Claude localStorage (`maiday.v1`, cały stan jako jeden JSON); w Claude `window.claude.use('db'|'user'|'assets'|'downloads')` w kształcie Firestore (`db.doc(path).collection(c).doc(id).set/delete`, `onSnapshot` zwraca całą kolekcję).
 - Punkty podmiany (szukaj po nazwie): `connect`, `enqueue`, `put`, `del`, `upload`, `dropAssets`, `blobUrl` (`'/_blob/' + id`), `downloadAsset`, `applyBackup` (woła `enqueue` bezpośrednio), `PROFILE`, `showAuth`/`hideAuth`/`#auth-google`, teksty o „wersji w Claude”, stopka „Zapisano w tej przeglądarce”.
-- Opcja najmniej inwazyjna: adapter udający `window.claude.use()` + routing `/_blob/<id>` do API.
 - `connect()` przy pierwszym połączeniu sam przenosi dane z localStorage na konto i czyści `maiday.v1`.
 - Kod błędu `invalid_argument` z zapisu przełącza aplikację w tryb tylko do odczytu — API/adapter nie może go zwracać przypadkiem.
 
@@ -87,6 +87,6 @@ infra/apps/<app>/ manifesty aplikacji (Kustomize); ApplicationSet tworzy z katal
 
 ## Otwarte decyzje
 
-- Jak współpracujemy z Julią przy `index.html` (czy dodaje hooki/adapter u siebie).
+- Jak współpracujemy z Julią przy `index.html`. Pomysł: skill dla jej Claude, który po każdej zmianie wysyła nową wersję do repo (gałąź `claude` → preview, merge do `main`), bez odciągania jej uwagi od projektowania i z zachowaniem adaptera API.
 - Magazyn plików: Cloudflare R2, DO Spaces czy inny S3.
 - Czy produkcja zostaje na DOKS, czy później k3s na VPS.
