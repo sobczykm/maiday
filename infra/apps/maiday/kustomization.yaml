@@ -13,4 +13,4 @@ images:
 - name: ghcr.io/sobczykm/maiday-api
   newTag: sha-2d2c7a7
 - name: ghcr.io/sobczykm/maiday-web
-  newTag: sha-8829dbd
+  newTag: sha-54d603c
