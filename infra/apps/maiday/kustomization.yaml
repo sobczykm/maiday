@@ -6,4 +6,4 @@ resources:
 images:
   # CI updates newTag after each build of app/web on main.
   - name: ghcr.io/sobczykm/maiday-web
-    newTag: main
+    newTag: sha-3617427
