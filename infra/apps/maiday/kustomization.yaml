@@ -5,6 +5,7 @@ resources:
 - web.yaml
 - api.yaml
 - db.yaml
+- backup.yaml
 - ingress.yaml
 - google.sealed.yaml
 - s3.sealed.yaml

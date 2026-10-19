@@ -1,0 +1,48 @@
+# Postgres backups to DigitalOcean Spaces: continuous WAL archive + a daily base backup, kept for 30 days.
+# Restore = new Cluster with bootstrap.recovery from this ObjectStore (see CLAUDE.md).
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: maiday-backups
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  retentionPolicy: 30d
+  configuration:
+    destinationPath: s3://maiday-bckt/cnpg
+    endpointURL: https://fra1.digitaloceanspaces.com
+    s3Credentials:
+      accessKeyId:
+        name: maiday-s3
+        key: S3_ACCESS_KEY_ID
+      secretAccessKey:
+        name: maiday-s3
+        key: S3_SECRET_ACCESS_KEY
+    wal:
+      compression: gzip
+    data:
+      compression: gzip
+  instanceSidecarConfiguration:
+    # boto3 data-integrity checksums are rejected by some S3-compatible stores
+    env:
+      - name: AWS_REQUEST_CHECKSUM_CALCULATION
+        value: when_required
+      - name: AWS_RESPONSE_CHECKSUM_VALIDATION
+        value: when_required
+    resources:
+      requests: { cpu: 10m, memory: 64Mi }
+      limits: { memory: 256Mi }
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: maiday-db-daily
+spec:
+  schedule: "0 0 3 * * *"
+  immediate: true
+  backupOwnerReference: self
+  cluster:
+    name: maiday-db
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io

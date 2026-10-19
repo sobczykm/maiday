@@ -16,7 +16,7 @@ app/web/          frontend: index.html (cała aplikacja), auth-bg.webp, Dockerfi
 app/api/          API w Go (stdlib net/http + pgx + x/oauth2), Dockerfile (distroless); schemat w schema.sql, migracja przy starcie
 infra/bootstrap/  jednorazowo ręcznie: Argo CD + root Application  →  kubectl apply -k infra/bootstrap --server-side
                   (Argo nie zainstaluje sam siebie; potem zarządza tym katalogiem przez Application "argocd")
-infra/argocd/     Applications zarządzane przez root (app of apps): argocd (self-managed), traefik, metrics-server, sealed-secrets, cnpg (operator), cert-manager, ApplicationSet "apps"
+infra/argocd/     Applications zarządzane przez root (app of apps): argocd (self-managed), traefik, metrics-server, sealed-secrets, cnpg (operator), barman-cloud (plugin backupów CNPG), cert-manager, ApplicationSet "apps"
 infra/platform/   konfiguracja komponentów platformy z Gita (np. cert-manager/cluster-issuer.yaml), dołączana jako drugie źródło Application
 infra/apps/<app>/ manifesty aplikacji (Kustomize); ApplicationSet tworzy z katalogu Application w namespace o tej samej nazwie
 .github/workflows/image.yml  wspólny: build obrazu ghcr.io/sobczykm/maiday-<name> (linux/amd64) + `kustomize edit set image` + commit (Argo wdraża)
@@ -45,6 +45,13 @@ infra/apps/<app>/ manifesty aplikacji (Kustomize); ApplicationSet tworzy z katal
 - Ochrona CSRF: cookie `SameSite=Lax` + `http.CrossOriginProtection`. `Secure` cookies, gdy `BASE_URL` zaczyna się od https.
 - Env: `DATABASE_URL` (z sekretu CNPG `maiday-db-app`), `BASE_URL` (`https://maiday.julqaj.com`), `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` (SealedSecret `maiday-google`), `S3_ENDPOINT`/`S3_BUCKET` (+ opcjonalnie `S3_REGION`) i `S3_ACCESS_KEY_ID`/`S3_SECRET_ACCESS_KEY` (SealedSecret `maiday-s3`). Brak sekretu = funkcja wyłączona (503).
 - Ingress `maiday` (`infra/apps/maiday/ingress.yaml`): host `maiday.julqaj.com`, `/api` → api, reszta → web. Google OAuth redirect URI: `https://maiday.julqaj.com/api/auth/callback`.
+
+## Backupy bazy
+
+- Plugin Barman Cloud (CNPG-I; wbudowany `barmanObjectStore` jest przestarzały). `infra/apps/maiday/backup.yaml`: `ObjectStore` `maiday-backups` → `s3://maiday-bckt/cnpg` (Spaces fra1, klucze z `maiday-s3`), ciągłe archiwum WAL + `ScheduledBackup` codziennie 03:00 UTC, retencja 30 dni. W `db.yaml` `spec.plugins` z `isWALArchiver: true`.
+- Stan: `kubectl -n maiday get backups`, `kubectl -n maiday get cluster maiday-db -o jsonpath='{.status.conditions}'` (ContinuousArchiving).
+- Odtworzenie: nowy `Cluster` z `bootstrap.recovery.source` → `externalClusters[].plugin` (`barman-cloud.cloudnative-pg.io`, `barmanObjectName: maiday-backups`, `serverName: maiday-db`). Restore przećwiczyć na osobnym klastrze o innej nazwie, żeby nie nadpisać archiwum.
+- Klucz prywatny Sealed Secrets trzymać poza klastrem — bez niego nie odszyfrujemy `maiday-s3` na nowym klastrze.
 
 ## Klaster
 
@@ -81,7 +88,7 @@ infra/apps/<app>/ manifesty aplikacji (Kustomize); ApplicationSet tworzy z katal
 ## Etapy
 
 1. **Fundament (zrobione 20.10.2026):** Argo CD (self-managed) + Traefik + metrics-server + frontend z obrazu GHCR, dostępny po IP LB.
-2. **Backend v1:** API w Go, CNPG, Google OIDC, magazyn plików, Sealed Secrets, domena + cert-manager; adapter w froncie; backupy CNPG.
+2. **Backend v1:** API w Go, CNPG, Google OIDC, magazyn plików, Sealed Secrets, domena + cert-manager; adapter w froncie; backupy CNPG (zrobione).
 3. **Migracja:** import JSON z wersji w Claude.
 4. **Rozwój:** monitoring, NetworkPolicy/quotas, preview z gałęzi `claude`, autoscaling, kolejne aplikacje.
 

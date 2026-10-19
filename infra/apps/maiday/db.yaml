@@ -15,9 +15,14 @@ spec:
     initdb:
       database: maiday
       owner: maiday
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: maiday-backups
   storage:
     size: 5Gi
-    # Retain: the DO volume survives deleting the PVC (no backups yet)
+    # Retain: the DO volume survives deleting the PVC
     storageClass: do-block-storage-retain
   resources:
     requests: { cpu: 100m, memory: 256Mi }
