@@ -100,6 +100,21 @@ func (s *server) me(w http.ResponseWriter, r *http.Request, user User) {
 	writeJSON(w, http.StatusOK, user)
 }
 
+func (s *server) deleteAccount(w http.ResponseWriter, r *http.Request, user User) {
+	if s.blobs != nil {
+		if err := s.blobs.DeleteAllOf(r.Context(), user.ID); err != nil {
+			s.fail(w, err)
+			return
+		}
+	}
+	if err := s.store.DeleteUser(r.Context(), user.ID); err != nil {
+		s.fail(w, err)
+		return
+	}
+	s.clearCookie(w, sessionCookie)
+	w.WriteHeader(http.StatusNoContent)
+}
+
 type userHandler func(w http.ResponseWriter, r *http.Request, user User)
 
 func (s *server) withUser(next userHandler) http.HandlerFunc {
@@ -141,7 +156,6 @@ func fetchGoogleUser(ctx context.Context, client *http.Client) (User, error) {
 		Email         string `json:"email"`
 		EmailVerified bool   `json:"email_verified"`
 		Name          string `json:"name"`
-		Picture       string `json:"picture"`
 	}
 	if err := json.NewDecoder(res.Body).Decode(&info); err != nil {
 		return User{}, err
@@ -149,7 +163,7 @@ func fetchGoogleUser(ctx context.Context, client *http.Client) (User, error) {
 	if info.Sub == "" || !info.EmailVerified {
 		return User{}, errors.New("google account has no verified email")
 	}
-	return User{ID: info.Sub, Email: info.Email, Name: info.Name, Picture: info.Picture}, nil
+	return User{ID: info.Sub, Email: info.Email, Name: info.Name}, nil
 }
 
 func (s *server) setCookie(w http.ResponseWriter, name, value string, ttl time.Duration) {

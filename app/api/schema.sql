@@ -2,7 +2,6 @@ CREATE TABLE IF NOT EXISTS users (
     id         text PRIMARY KEY,
     email      text NOT NULL,
     name       text NOT NULL DEFAULT '',
-    picture    text NOT NULL DEFAULT '',
     created_at timestamptz NOT NULL DEFAULT now()
 );
 
@@ -32,3 +31,5 @@ CREATE TABLE IF NOT EXISTS assets (
 );
 
 CREATE INDEX IF NOT EXISTS assets_user_id ON assets (user_id);
+
+ALTER TABLE users DROP COLUMN IF EXISTS picture;

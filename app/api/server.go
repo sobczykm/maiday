@@ -33,6 +33,7 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("GET /api/auth/callback", s.callback)
 	mux.HandleFunc("POST /api/auth/logout", s.logout)
 	mux.HandleFunc("GET /api/me", s.withUser(s.me))
+	mux.HandleFunc("DELETE /api/me", s.withUser(s.deleteAccount))
 
 	mux.HandleFunc("GET /api/items", s.withUser(s.listItems))
 	mux.HandleFunc("PUT /api/items/{collection}/{id}", s.withUser(s.putItem))

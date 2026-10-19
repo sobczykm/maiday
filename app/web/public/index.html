@@ -1812,6 +1812,9 @@ input::placeholder, textarea::placeholder { color: var(--muted); opacity: 1; }
 .pf-logout { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 40px; padding: 0 8px; border: 0; border-radius: 8px; background: none; font: inherit; font-size: 14px; font-weight: 500; color: var(--danger); text-align: left; cursor: pointer; }
 .pf-logout:hover, .pf-logout:focus-visible { background: color-mix(in srgb, var(--danger) 8%, transparent); outline: none; }
 .pf-logout svg { width: 18px; height: 18px; }
+.pf-legal { display: flex; gap: 12px; padding: 6px 8px 2px; border-top: 1px solid var(--line); font-size: 12px; }
+.pf-legal a { color: var(--muted); text-decoration: none; }
+.pf-legal a:hover { color: var(--ink); text-decoration: underline; }
 /* Profile in the mobile menu */
 .nav-profile { display: flex; align-items: center; gap: 12px; padding: 8px 16px; }
 .nav-profile .pf-ava { width: 40px; height: 40px; }
@@ -1834,7 +1837,7 @@ html.auth-open, html.auth-open body { overflow: hidden; }
 .auth-google { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; height: 48px; border-radius: 12px; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink); font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; }
 .auth-google:hover { filter: brightness(1.06); }
 .auth-google:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-.auth-g { display: inline-grid; } .auth-g svg { width: 18px; height: 18px; }
+.auth-g { display: inline-grid; place-items: center; } .auth-g svg { width: 20px; height: 20px; }
 .auth-note { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
 .auth-switch { margin: 14px 0 0; font-size: 14px; color: var(--muted); }
 .auth-switch .textbtn { color: var(--accent); font-weight: 600; font-size: 14px; padding: 2px 4px; }
@@ -5464,12 +5467,33 @@ html.auth-open, html.auth-open body { overflow: hidden; }
   }
   paintProfile();
   const logoutIcon = () => luSvg('LogOut', 1.9) || svg('<path d="M6 13.5H3.5a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1H6M10.5 11l3-3-3-3M13.5 8H6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>');
+  const deleteAccountIcon = () => luSvg('UserX', 1.9) || svg(ICON_TRASH);
+  const legalLinks = () => h('div', { class: 'pf-legal' },
+    h('a', { href: '/regulamin', target: '_blank', rel: 'noopener' }, 'Regulamin'),
+    h('a', { href: '/prywatnosc', target: '_blank', rel: 'noopener' }, 'Prywatność'));
+  function confirmDeleteAccount() {
+    confirmDialog({
+      title: 'Usunąć konto?',
+      message: 'Usuniemy Twoje konto Maiday i wszystkie dane: zadania, nawyki, notatki, bibliotekę, oferty pracy oraz zdjęcia i pliki. Tej operacji nie można cofnąć. Jeśli chcesz zachować dane, najpierw zapisz kopię zapasową.',
+      confirm: 'Usuń konto',
+      onConfirm: deleteAccount
+    });
+  }
+  async function deleteAccount() {
+    try { await api('DELETE', '/api/me'); }
+    catch (e) { toast('Nie udało się usunąć konta. Spróbuj ponownie za chwilę.', 5000); return; }
+    try { Object.keys(localStorage).filter(k => k.startsWith('maiday.')).forEach(k => localStorage.removeItem(k)); } catch (e) {}
+    location.reload();
+  }
   pfBtn.addEventListener('click', e => {
     const b = e.currentTarget;
     if (!pop.hidden && popAnchor === b) { closePop(); b.setAttribute('aria-expanded', 'false'); return; }
     b.setAttribute('aria-expanded', 'true');
+    const item = (icon, label, action) => h('button', { type: 'button', class: 'pf-logout', role: 'menuitem', onclick: () => { closePop(); b.setAttribute('aria-expanded', 'false'); action(); } }, icon, label);
     openPop(b, h('div', { class: 'pf-pop', role: 'menu' },
-      h('button', { type: 'button', class: 'pf-logout', role: 'menuitem', onclick: () => { closePop(); b.setAttribute('aria-expanded', 'false'); logout(); } }, logoutIcon(), 'Wyloguj')), 'Profil');
+      item(logoutIcon(), 'Wyloguj', logout),
+      inClaude() ? null : item(deleteAccountIcon(), 'Usuń konto', confirmDeleteAccount),
+      legalLinks()), 'Profil');
     const lo = pop.querySelector('.pf-logout'); if (lo) lo.focus();
   });
 
@@ -5482,8 +5506,8 @@ html.auth-open, html.auth-open body { overflow: hidden; }
     $('#auth-title').textContent = 'Witaj w Maiday';
     $('#auth-sub').textContent = 'Twój plan dnia, nawyki i notatki w jednym spokojnym miejscu.';
     $('#auth-google-lbl').textContent = 'Kontynuuj z Google';
-    const legal = label => h('a', { href: '#', onclick: e => e.preventDefault() }, label);
-    $('#auth-note').replaceChildren('Do Maiday wchodzisz przez konto Google. Jeśli korzystasz pierwszy raz, Twoje konto w Maiday utworzy się samo \u2014 pobierzemy tylko imię, nazwisko i adres e-mail. Kontynuując, akceptujesz ', legal('Regulamin'), ' i ', legal('Politykę prywatności'), '.');
+    const legal = (label, href) => h('a', { href, target: '_blank', rel: 'noopener' }, label);
+    $('#auth-note').replaceChildren('Do Maiday wchodzisz przez konto Google. Jeśli korzystasz pierwszy raz, Twoje konto w Maiday utworzy się samo \u2014 pobierzemy tylko imię, nazwisko i adres e-mail. Kontynuując, akceptujesz ', legal('Regulamin', '/regulamin'), ' i ', legal('Politykę prywatności', '/prywatnosc'), '.');
   }
   function showAuth() {
     paintAuth(); closeNavMenu(false); closePop();
@@ -5494,8 +5518,8 @@ html.auth-open, html.auth-open body { overflow: hidden; }
     authEl.hidden = true; document.documentElement.classList.remove('auth-open');
     toast('Witaj, ' + PROFILE.name.split(' ')[0] + '!', 2500);
   }
-  // slot for Google's official mark: the Google Identity Services button replaces this element at deployment
-  $('#auth-google').prepend(h('span', { class: 'auth-g', 'aria-hidden': 'true' }));
+  const GOOGLE_G = '<svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>';
+  { const g = h('span', { class: 'auth-g', 'aria-hidden': 'true' }); g.innerHTML = GOOGLE_G; $('#auth-google').prepend(g); }
   $('#auth-google').addEventListener('click', () => { if (inClaude()) hideAuth(); else location.href = '/api/auth/login'; });
 
   // ---- mobile hamburger menu ----
@@ -5514,6 +5538,9 @@ html.auth-open, html.auth-open body { overflow: hidden; }
     return b;
   })(),
   h('button', { type: 'button', class: 'nav-item nav-logout', onclick: logout }, logoutIcon(), h('span', {}, 'Wyloguj')));
+  if (!inClaude()) navMenu.append(
+    h('button', { type: 'button', class: 'nav-item nav-logout', onclick: () => { closeNavMenu(false); confirmDeleteAccount(); } }, deleteAccountIcon(), h('span', {}, 'Usuń konto')),
+    legalLinks());
   function openNavMenu() {
     closePop(); closeMenu();
     document.documentElement.style.setProperty('--top-h', Math.round(document.querySelector('.topbar-inner').getBoundingClientRect().height + 1) + 'px');

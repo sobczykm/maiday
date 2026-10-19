@@ -18,10 +18,9 @@ var schema string
 var ErrNotFound = errors.New("not found")
 
 type User struct {
-	ID      string `json:"id"`
-	Email   string `json:"email"`
-	Name    string `json:"name"`
-	Picture string `json:"picture"`
+	ID    string `json:"id"`
+	Email string `json:"email"`
+	Name  string `json:"name"`
 }
 
 type Store struct {
@@ -35,9 +34,14 @@ func (s *Store) Migrate(ctx context.Context) error {
 
 func (s *Store) UpsertUser(ctx context.Context, u User) error {
 	_, err := s.db.Exec(ctx, `
-		INSERT INTO users (id, email, name, picture) VALUES ($1, $2, $3, $4)
-		ON CONFLICT (id) DO UPDATE SET email = $2, name = $3, picture = $4`,
-		u.ID, u.Email, u.Name, u.Picture)
+		INSERT INTO users (id, email, name) VALUES ($1, $2, $3)
+		ON CONFLICT (id) DO UPDATE SET email = $2, name = $3`,
+		u.ID, u.Email, u.Name)
+	return err
+}
+
+func (s *Store) DeleteUser(ctx context.Context, userID string) error {
+	_, err := s.db.Exec(ctx, `DELETE FROM users WHERE id = $1`, userID)
 	return err
 }
 
@@ -54,10 +58,10 @@ func (s *Store) CreateSession(ctx context.Context, userID string, ttl time.Durat
 func (s *Store) UserBySession(ctx context.Context, token string) (User, error) {
 	var u User
 	err := s.db.QueryRow(ctx, `
-		SELECT u.id, u.email, u.name, u.picture
+		SELECT u.id, u.email, u.name
 		FROM sessions s JOIN users u ON u.id = s.user_id
 		WHERE s.token_hash = $1 AND s.expires_at > now()`,
-		hashToken(token)).Scan(&u.ID, &u.Email, &u.Name, &u.Picture)
+		hashToken(token)).Scan(&u.ID, &u.Email, &u.Name)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return User{}, ErrNotFound
 	}

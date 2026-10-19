@@ -56,3 +56,13 @@ func (b *Blobs) Get(ctx context.Context, a Asset) (io.ReadCloser, error) {
 func (b *Blobs) Delete(ctx context.Context, a Asset) error {
 	return b.client.RemoveObject(ctx, b.bucket, objectKey(a), minio.RemoveObjectOptions{})
 }
+
+func (b *Blobs) DeleteAllOf(ctx context.Context, userID string) error {
+	objects := b.client.ListObjects(ctx, b.bucket, minio.ListObjectsOptions{Prefix: userID + "/", Recursive: true})
+	for result := range b.client.RemoveObjects(ctx, b.bucket, objects, minio.RemoveObjectsOptions{}) {
+		if result.Err != nil {
+			return result.Err
+		}
+	}
+	return nil
+}

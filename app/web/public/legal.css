@@ -1,0 +1,33 @@
+@import url("/fonts/fonts.css");
+
+:root {
+  --bg: #FBFBFB; --surface: #FFFFFF; --ink: #1B2650; --accent: #2843AC;
+  --muted: color-mix(in srgb, var(--ink) 70%, transparent);
+  --line: color-mix(in srgb, var(--ink) 13%, transparent);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #11131B; --surface: #181B26; --ink: #E8EAF3; --accent: #8EA2F0; color-scheme: dark; }
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 300 16px/1.65 "Onest", system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+main {
+  max-width: 760px; margin: 0 auto;
+  padding-block: 48px 80px;
+  padding-inline: max(20px, env(safe-area-inset-left, 0px)) max(20px, env(safe-area-inset-right, 0px));
+}
+nav { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 32px; font-size: 14px; }
+a { color: var(--accent); }
+h1, h2 { font-family: "Averia Serif Libre", Georgia, serif; font-weight: 700; letter-spacing: -.01em; line-height: 1.2; }
+h1 { font-size: clamp(30px, 6vw, 42px); margin: 0 0 8px; }
+h2 { font-size: 22px; margin: 40px 0 8px; }
+.updated { color: var(--muted); margin: 0 0 32px; font-size: 14px; }
+strong { font-weight: 600; }
+ul, ol { padding-left: 1.3em; }
+li { margin: 4px 0; }
+.box { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px 20px; }
