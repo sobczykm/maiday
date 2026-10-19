@@ -1,0 +1,27 @@
+# Postgres for Maiday. CNPG creates database "maiday" owned by user "maiday" and a Secret
+# "maiday-db-app" (keys: username, password, host, port, dbname, uri) for the API.
+# Service for connections: maiday-db-rw:5432.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: maiday-db
+  annotations:
+    # the CRD comes from the cnpg Application; don't fail the dry run before it exists
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  instances: 1
+  imageName: ghcr.io/cloudnative-pg/postgresql:18.6-system-trixie
+  bootstrap:
+    initdb:
+      database: maiday
+      owner: maiday
+  storage:
+    size: 5Gi
+    # Retain: the DO volume survives deleting the PVC (no backups yet)
+    storageClass: do-block-storage-retain
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { memory: 512Mi }
+  postgresql:
+    parameters:
+      shared_buffers: 128MB

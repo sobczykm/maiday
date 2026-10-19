@@ -29,5 +29,9 @@ spec:
         automated:
           prune: true
           selfHeal: true
+        # e.g. a CNPG Cluster synced before the operator's webhook is ready
+        retry:
+          limit: 10
+          backoff: { duration: 30s, factor: 2, maxDuration: 5m }
         syncOptions:
           - CreateNamespace=true

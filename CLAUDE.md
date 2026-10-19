@@ -16,7 +16,7 @@ app/web/          frontend: index.html (cała aplikacja), auth-bg.webp, Dockerfi
 app/api/          (do zrobienia) API w Go
 infra/bootstrap/  jednorazowo ręcznie: Argo CD + root Application  →  kubectl apply -k infra/bootstrap --server-side
                   (Argo nie zainstaluje sam siebie; potem zarządza tym katalogiem przez Application "argocd")
-infra/argocd/     Applications zarządzane przez root (app of apps): argocd (self-managed), traefik, ApplicationSet "apps"
+infra/argocd/     Applications zarządzane przez root (app of apps): argocd (self-managed), traefik, metrics-server, sealed-secrets, cnpg (operator), ApplicationSet "apps"
 infra/apps/<app>/ manifesty aplikacji (Kustomize); ApplicationSet tworzy z katalogu Application w namespace o tej samej nazwie
 .github/workflows/web.yml  build obrazu ghcr.io/sobczykm/maiday-web (linux/amd64) + commit nowego taga do infra/apps/maiday/kustomization.yaml
 ```
@@ -27,7 +27,7 @@ infra/apps/<app>/ manifesty aplikacji (Kustomize); ApplicationSet tworzy z katal
 
 ## Ustalenia
 
-- **Backend:** własne API w **Go** + Postgres przez **CloudNativePG**. Tabela `items(user_id, collection, id text, data jsonb, updated_at)`, klucz `(user_id, collection, id)`. Autoryzacja w API (filtr po `user_id`), bez Supabase/Firebase.
+- **Backend:** własne API w **Go** + Postgres przez **CloudNativePG**. Klaster Postgresa per aplikacja w jej namespace (`infra/apps/maiday/db.yaml`, `maiday-db`, 1 instancja, 5 Gi), bo sekret `maiday-db-app` generowany przez CNPG jest wtedy od razu dostępny dla API; wspólny klaster rozważyć przy kolejnych aplikacjach. Tabela `items(user_id, collection, id text, data jsonb, updated_at)`, klucz `(user_id, collection, id)`. Autoryzacja w API (filtr po `user_id`), bez Supabase/Firebase.
 - **Auth:** tylko Google (OIDC w API, sesja w httpOnly cookie). E-mail/Apple z notatki Julii odrzucone na razie.
 - **Sekrety:** Sealed Secrets.
 - **Ingress:** Traefik (ingress-nginx jest wycofany). Jeden LoadBalancer na klaster.
@@ -39,7 +39,8 @@ infra/apps/<app>/ manifesty aplikacji (Kustomize); ApplicationSet tworzy z katal
 ## Klaster
 
 - DigitalOcean DOKS `fra1`, Kubernetes 1.37, kontekst `do-fra1-k8s-1-37-0-do-1-fra1-1792447752898`, HA control plane wyłączone, auto-upgrade wyłączony.
-- Pula: **1 × s-2vcpu-4gb** (amd64). Plan: dołożyć drugi węzeł albo powiększyć (decyzja otwarta). Każdy LoadBalancer i PVC kosztuje osobno.
+- Pula: **1 × s-2vcpu-4gb** (amd64, ~3 GB allocatable). Decyzja: zostajemy na jednym węźle (bez HA; brak miejsca na własny Prometheus — monitoring na zewnątrz). Każdy LoadBalancer i PVC kosztuje osobno.
+- Traefik ma Service LoadBalancer (DO LB ~12 $/m-c), IP 134.199.190.18 — Maiday działa na http://134.199.190.18 (tryb localStorage).
 - Lokalnie: Mac arm64 → obrazy budować dla `linux/amd64`. kubectl 1.34 jest za stary dla serwera 1.37; helm i gh niezainstalowane.
 
 ## Aplikacja (`app/web/index.html`)
@@ -69,7 +70,7 @@ infra/apps/<app>/ manifesty aplikacji (Kustomize); ApplicationSet tworzy z katal
 
 ## Etapy
 
-1. **Fundament (w toku):** Argo CD + Traefik + frontend z obrazu GHCR, test po IP LB.
+1. **Fundament (zrobione 20.10.2026):** Argo CD (self-managed) + Traefik + metrics-server + frontend z obrazu GHCR, dostępny po IP LB.
 2. **Backend v1:** API w Go, CNPG, Google OIDC, magazyn plików, Sealed Secrets, domena + cert-manager; adapter w froncie; backupy CNPG.
 3. **Migracja:** import JSON z wersji w Claude.
 4. **Rozwój:** monitoring, NetworkPolicy/quotas, preview z gałęzi `claude`, autoscaling, kolejne aplikacje.
@@ -77,6 +78,5 @@ infra/apps/<app>/ manifesty aplikacji (Kustomize); ApplicationSet tworzy z katal
 ## Otwarte decyzje
 
 - Jak współpracujemy z Julią przy `index.html` (czy dodaje hooki/adapter u siebie).
-- Drugi węzeł czy większy węzeł.
 - Domena; Cloudflare (DNS/Tunnel/R2) czy inny magazyn plików.
 - Czy produkcja zostaje na DOKS, czy później k3s na VPS.
