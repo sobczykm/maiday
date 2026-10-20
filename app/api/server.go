@@ -28,6 +28,7 @@ func (s *server) routes() http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("ok\n")) })
+	mux.HandleFunc("GET /metrics", s.metrics)
 
 	mux.HandleFunc("GET /api/auth/login", s.login)
 	mux.HandleFunc("GET /api/auth/callback", s.callback)

@@ -140,6 +140,50 @@ func (s *Store) DeleteAsset(ctx context.Context, userID, id string) (deleted boo
 	return tag.RowsAffected() > 0, err
 }
 
+type Stats struct {
+	Users             int64
+	ActiveUsers1d     int64
+	ActiveUsers7d     int64
+	ActiveUsers30d    int64
+	ActiveSessions    int64
+	Assets            int64
+	AssetBytes        int64
+	ItemsByCollection map[string]int64
+}
+
+func (s *Store) Stats(ctx context.Context) (Stats, error) {
+	var st Stats
+	err := s.db.QueryRow(ctx, `
+		SELECT
+			(SELECT count(*) FROM users),
+			(SELECT count(DISTINCT user_id) FROM items WHERE updated_at > now() - interval '1 day'),
+			(SELECT count(DISTINCT user_id) FROM items WHERE updated_at > now() - interval '7 days'),
+			(SELECT count(DISTINCT user_id) FROM items WHERE updated_at > now() - interval '30 days'),
+			(SELECT count(*) FROM sessions WHERE expires_at > now()),
+			(SELECT count(*) FROM assets),
+			(SELECT coalesce(sum(size_bytes), 0) FROM assets)`).
+		Scan(&st.Users, &st.ActiveUsers1d, &st.ActiveUsers7d, &st.ActiveUsers30d, &st.ActiveSessions, &st.Assets, &st.AssetBytes)
+	if err != nil {
+		return st, err
+	}
+
+	rows, err := s.db.Query(ctx, `SELECT collection, count(*) FROM items GROUP BY collection`)
+	if err != nil {
+		return st, err
+	}
+	defer rows.Close()
+	st.ItemsByCollection = map[string]int64{}
+	for rows.Next() {
+		var collection string
+		var n int64
+		if err := rows.Scan(&collection, &n); err != nil {
+			return st, err
+		}
+		st.ItemsByCollection[collection] = n
+	}
+	return st, rows.Err()
+}
+
 func hashToken(token string) []byte {
 	sum := sha256.Sum256([]byte(token))
 	return sum[:]
