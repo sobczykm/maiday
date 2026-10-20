@@ -50,7 +50,7 @@ infra/apps/<app>/ manifesty aplikacji (Kustomize); ApplicationSet tworzy z katal
 
 - Plugin Barman Cloud (CNPG-I; wbudowany `barmanObjectStore` jest przestarzały). `infra/apps/maiday/backup.yaml`: `ObjectStore` `maiday-backups` → `s3://maiday-bckt/cnpg` (Spaces fra1, klucze z `maiday-s3`), ciągłe archiwum WAL + `ScheduledBackup` codziennie 03:00 UTC, retencja 30 dni. W `db.yaml` `spec.plugins` z `isWALArchiver: true`.
 - Stan: `kubectl -n maiday get backups`, `kubectl -n maiday get cluster maiday-db -o jsonpath='{.status.conditions}'` (ContinuousArchiving).
-- Odtworzenie: nowy `Cluster` z `bootstrap.recovery.source` → `externalClusters[].plugin` (`barman-cloud.cloudnative-pg.io`, `barmanObjectName: maiday-backups`, `serverName: maiday-db`). Restore przećwiczyć na osobnym klastrze o innej nazwie, żeby nie nadpisać archiwum.
+- Odtworzenie: nowy `Cluster` z `bootstrap.recovery.source` → `externalClusters[].plugin` (`barman-cloud.cloudnative-pg.io`, `barmanObjectName: maiday-backups`, `serverName: maiday-db`). Restore przećwiczony 20.10.2026 (`infra/runbooks/restore-test.yaml`, osobny klaster bez `spec.plugins`): liczby wpisów zgodne z produkcją, odtworzenie ~2 min. RPO do ~5 min (WAL wysyłany najpóźniej co 5 min).
 - Klucz prywatny Sealed Secrets trzymać poza klastrem — bez niego nie odszyfrujemy `maiday-s3` na nowym klastrze.
 
 ## Klaster

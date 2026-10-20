@@ -1,0 +1,36 @@
+# Restore drill: rebuilds the Maiday database from the Spaces backups into a SEPARATE cluster.
+# Not synced by Argo CD (infra/runbooks is not watched). Production (maiday-db) is not touched:
+# no spec.plugins here, so this cluster never archives WAL into the shared backup store.
+#
+#   kubectl apply -f infra/runbooks/restore-test.yaml
+#   kubectl -n maiday get cluster maiday-db-restore-test -w        # wait for "Cluster in healthy state"
+#   kubectl -n maiday exec maiday-db-restore-test-1 -c postgres -- psql -U postgres -d maiday \
+#     -c "select collection, count(*) from items group by 1"         # compare with maiday-db-1
+#   kubectl -n maiday delete cluster maiday-db-restore-test          # removes its volume too
+#
+# For a real disaster: restore into a cluster named maiday-db only after the old one is gone,
+# and add spec.plugins (as in apps/maiday/db.yaml) with a NEW serverName so the old archive stays intact.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: maiday-db-restore-test
+  namespace: maiday
+spec:
+  instances: 1
+  imageName: ghcr.io/cloudnative-pg/postgresql:18.6-system-trixie
+  bootstrap:
+    recovery:
+      source: maiday-db-backup
+  externalClusters:
+    - name: maiday-db-backup
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        parameters:
+          barmanObjectName: maiday-backups
+          serverName: maiday-db
+  storage:
+    size: 1Gi
+    storageClass: do-block-storage
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { memory: 384Mi }
