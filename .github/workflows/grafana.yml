@@ -1,0 +1,42 @@
+name: grafana
+
+# Dashboards are edited as JSON in infra/grafana/dashboards and pushed to Grafana Cloud on every change.
+on:
+  push:
+    branches: [main]
+    paths: ['infra/grafana/**', '.github/workflows/grafana.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dashboards:
+    runs-on: ubuntu-latest
+    env:
+      GRAFANA_URL: https://fondzinnia691.grafana.net
+      GRAFANA_TOKEN: ${{ secrets.GRAFANA_TOKEN }}
+      FOLDER_UID: maiday
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Ensure the Maiday folder exists
+        run: |
+          status=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $GRAFANA_TOKEN" \
+            "$GRAFANA_URL/api/folders/$FOLDER_UID")
+          if [ "$status" = "404" ]; then
+            curl -sf -X POST -H "Authorization: Bearer $GRAFANA_TOKEN" -H 'Content-Type: application/json' \
+              -d "{\"uid\":\"$FOLDER_UID\",\"title\":\"Maiday\"}" "$GRAFANA_URL/api/folders"
+          elif [ "$status" != "200" ]; then
+            echo "Grafana returned $status for the folder check (token or URL wrong?)"; exit 1
+          fi
+
+      - name: Upload dashboards
+        run: |
+          for file in infra/grafana/dashboards/*.json; do
+            jq --arg folder "$FOLDER_UID" --arg msg "${GITHUB_SHA::7}" \
+              '{dashboard: (. + {id: null}), folderUid: $folder, overwrite: true, message: $msg}' "$file" |
+              curl -sf -X POST -H "Authorization: Bearer $GRAFANA_TOKEN" -H 'Content-Type: application/json' \
+                --data-binary @- "$GRAFANA_URL/api/dashboards/db"
+            echo " <- $file"
+          done

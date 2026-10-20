@@ -1,0 +1,260 @@
+// Scrapes a small, explicit set of metrics and ships them to Grafana Cloud (free tier: 10k series).
+// Every job keeps only the metric names listed in its keep_metrics block.
+
+prometheus.remote_write "grafana_cloud" {
+  endpoint {
+    url = "https://prometheus-prod-65-prod-eu-west-2.grafana.net/api/prom/push"
+
+    basic_auth {
+      username = sys.env("PROM_USERNAME")
+      password = sys.env("PROM_PASSWORD")
+    }
+  }
+
+  external_labels = {
+    cluster = "doks-fra1",
+  }
+}
+
+// ---------- node and container usage (kubelet) ----------
+
+discovery.kubernetes "nodes" {
+  role = "node"
+}
+
+discovery.relabel "kubelet_resource" {
+  targets = discovery.kubernetes.nodes.targets
+
+  rule {
+    target_label = "__metrics_path__"
+    replacement  = "/metrics/resource"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_node_name"]
+    target_label  = "node"
+  }
+}
+
+discovery.relabel "kubelet" {
+  targets = discovery.kubernetes.nodes.targets
+
+  rule {
+    source_labels = ["__meta_kubernetes_node_name"]
+    target_label  = "node"
+  }
+}
+
+prometheus.scrape "kubelet_resource" {
+  job_name          = "kubelet-resource"
+  targets           = discovery.relabel.kubelet_resource.output
+  scheme            = "https"
+  bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+  scrape_interval   = "60s"
+  forward_to        = [prometheus.relabel.kubelet_resource.receiver]
+
+  tls_config {
+    insecure_skip_verify = true
+  }
+}
+
+prometheus.relabel "kubelet_resource" {
+  forward_to = [prometheus.remote_write.grafana_cloud.receiver]
+
+  rule {
+    source_labels = ["__name__"]
+    regex         = "up|node_cpu_usage_seconds_total|node_memory_working_set_bytes|container_cpu_usage_seconds_total|container_memory_working_set_bytes"
+    action        = "keep"
+  }
+}
+
+prometheus.scrape "kubelet" {
+  job_name          = "kubelet"
+  targets           = discovery.relabel.kubelet.output
+  scheme            = "https"
+  bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+  scrape_interval   = "60s"
+  forward_to        = [prometheus.relabel.kubelet.receiver]
+
+  tls_config {
+    insecure_skip_verify = true
+  }
+}
+
+prometheus.relabel "kubelet" {
+  forward_to = [prometheus.remote_write.grafana_cloud.receiver]
+
+  rule {
+    source_labels = ["__name__"]
+    regex         = "kubelet_volume_stats_used_bytes|kubelet_volume_stats_capacity_bytes"
+    action        = "keep"
+  }
+}
+
+// ---------- in-cluster services (one pod discovery, one keep rule per job) ----------
+
+discovery.kubernetes "pods" {
+  role = "pod"
+}
+
+discovery.relabel "running_pods" {
+  targets = discovery.kubernetes.pods.targets
+
+  rule {
+    source_labels = ["__meta_kubernetes_pod_phase"]
+    regex         = "Running"
+    action        = "keep"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_namespace"]
+    target_label  = "namespace"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_pod_name"]
+    target_label  = "pod"
+  }
+}
+
+discovery.relabel "maiday_api" {
+  targets = discovery.relabel.running_pods.output
+
+  rule {
+    source_labels = ["namespace", "__meta_kubernetes_pod_label_app", "__meta_kubernetes_pod_container_port_number"]
+    regex         = "maiday;api;8080"
+    action        = "keep"
+  }
+}
+
+discovery.relabel "postgres" {
+  targets = discovery.relabel.running_pods.output
+
+  rule {
+    source_labels = ["__meta_kubernetes_pod_label_cnpg_io_cluster", "__meta_kubernetes_pod_container_port_name"]
+    regex         = ".+;metrics"
+    action        = "keep"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_pod_label_cnpg_io_cluster"]
+    target_label  = "cnpg_cluster"
+  }
+}
+
+discovery.relabel "traefik" {
+  targets = discovery.relabel.running_pods.output
+
+  rule {
+    source_labels = ["namespace", "__meta_kubernetes_pod_container_port_name"]
+    regex         = "traefik;metrics"
+    action        = "keep"
+  }
+}
+
+discovery.relabel "cert_manager" {
+  targets = discovery.relabel.running_pods.output
+
+  rule {
+    source_labels = ["namespace", "__meta_kubernetes_pod_label_app_kubernetes_io_component", "__meta_kubernetes_pod_container_port_number"]
+    regex         = "cert-manager;controller;9402"
+    action        = "keep"
+  }
+}
+
+discovery.relabel "kube_state_metrics" {
+  targets = discovery.relabel.running_pods.output
+
+  rule {
+    source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name", "__meta_kubernetes_pod_container_port_name"]
+    regex         = "kube-state-metrics;http"
+    action        = "keep"
+  }
+}
+
+prometheus.scrape "maiday_api" {
+  job_name        = "maiday-api"
+  targets         = discovery.relabel.maiday_api.output
+  scrape_interval = "60s"
+  forward_to      = [prometheus.relabel.maiday_api.receiver]
+}
+
+prometheus.relabel "maiday_api" {
+  forward_to = [prometheus.remote_write.grafana_cloud.receiver]
+
+  rule {
+    source_labels = ["__name__"]
+    regex         = "up|maiday_.*"
+    action        = "keep"
+  }
+}
+
+prometheus.scrape "postgres" {
+  job_name        = "postgres"
+  targets         = discovery.relabel.postgres.output
+  scrape_interval = "60s"
+  forward_to      = [prometheus.relabel.postgres.receiver]
+}
+
+prometheus.relabel "postgres" {
+  forward_to = [prometheus.remote_write.grafana_cloud.receiver]
+
+  rule {
+    source_labels = ["__name__"]
+    regex         = "up|cnpg_collector_up|cnpg_pg_database_size_bytes|cnpg_backends_total|cnpg_pg_stat_archiver_(archived_count|failed_count|seconds_since_last_archival)|barman_cloud_cloudnative_pg_io_.*"
+    action        = "keep"
+  }
+}
+
+prometheus.scrape "traefik" {
+  job_name        = "traefik"
+  targets         = discovery.relabel.traefik.output
+  scrape_interval = "60s"
+  forward_to      = [prometheus.relabel.traefik.receiver]
+}
+
+prometheus.relabel "traefik" {
+  forward_to = [prometheus.remote_write.grafana_cloud.receiver]
+
+  rule {
+    source_labels = ["__name__"]
+    regex         = "up|traefik_service_requests_total|traefik_service_request_duration_seconds_(bucket|sum|count)"
+    action        = "keep"
+  }
+}
+
+prometheus.scrape "cert_manager" {
+  job_name        = "cert-manager"
+  targets         = discovery.relabel.cert_manager.output
+  scrape_interval = "300s"
+  forward_to      = [prometheus.relabel.cert_manager.receiver]
+}
+
+prometheus.relabel "cert_manager" {
+  forward_to = [prometheus.remote_write.grafana_cloud.receiver]
+
+  rule {
+    source_labels = ["__name__"]
+    regex         = "up|certmanager_certificate_expiration_timestamp_seconds|certmanager_certificate_ready_status"
+    action        = "keep"
+  }
+}
+
+prometheus.scrape "kube_state_metrics" {
+  job_name        = "kube-state-metrics"
+  targets         = discovery.relabel.kube_state_metrics.output
+  scrape_interval = "60s"
+  // kube-state-metrics reports on other pods: keep their namespace/pod labels, not its own
+  honor_labels    = true
+  forward_to      = [prometheus.relabel.kube_state_metrics.receiver]
+}
+
+prometheus.relabel "kube_state_metrics" {
+  forward_to = [prometheus.remote_write.grafana_cloud.receiver]
+
+  rule {
+    source_labels = ["__name__"]
+    regex         = "up|kube_pod_container_status_restarts_total|kube_pod_container_status_ready|kube_pod_container_status_waiting_reason|kube_deployment_status_replicas_available|kube_deployment_spec_replicas|kube_node_status_allocatable"
+    action        = "keep"
+  }
+}

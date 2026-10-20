@@ -16,7 +16,7 @@ app/web/          frontend: Dockerfile (nginx-unprivileged), nginx.conf (cache, 
 app/api/          API w Go (stdlib net/http + pgx + x/oauth2), Dockerfile (distroless); schemat w schema.sql, migracja przy starcie
 infra/bootstrap/  jednorazowo ręcznie: Argo CD + root Application  →  kubectl apply -k infra/bootstrap --server-side
                   (Argo nie zainstaluje sam siebie; potem zarządza tym katalogiem przez Application "argocd")
-infra/argocd/     Applications zarządzane przez root (app of apps): argocd (self-managed), traefik, metrics-server, sealed-secrets, cnpg (operator), barman-cloud (plugin backupów CNPG), cert-manager, ApplicationSet "apps"
+infra/argocd/     Applications zarządzane przez root (app of apps): argocd (self-managed), traefik, metrics-server, sealed-secrets, cnpg (operator), barman-cloud (plugin backupów CNPG), cert-manager, alloy + kube-state-metrics (monitoring), ApplicationSet "apps"
 infra/platform/   konfiguracja komponentów platformy z Gita (np. cert-manager/cluster-issuer.yaml), dołączana jako drugie źródło Application
 infra/apps/<app>/ manifesty aplikacji (Kustomize); ApplicationSet tworzy z katalogu Application w namespace o tej samej nazwie
 .github/workflows/image.yml  wspólny: build obrazu ghcr.io/sobczykm/maiday-<name> (linux/amd64) + `kustomize edit set image` + commit (Argo wdraża)
@@ -45,6 +45,15 @@ infra/apps/<app>/ manifesty aplikacji (Kustomize); ApplicationSet tworzy z katal
 - Ochrona CSRF: cookie `SameSite=Lax` + `http.CrossOriginProtection`. `Secure` cookies, gdy `BASE_URL` zaczyna się od https.
 - Env: `DATABASE_URL` (z sekretu CNPG `maiday-db-app`), `BASE_URL` (`https://maiday.julqaj.com`), `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` (SealedSecret `maiday-google`), `S3_ENDPOINT`/`S3_BUCKET` (+ opcjonalnie `S3_REGION`) i `S3_ACCESS_KEY_ID`/`S3_SECRET_ACCESS_KEY` (SealedSecret `maiday-s3`). Brak sekretu = funkcja wyłączona (503).
 - Ingress `maiday` (`infra/apps/maiday/ingress.yaml`): host `maiday.julqaj.com`, `/api` → api, reszta → web. Google OAuth redirect URI: `https://maiday.julqaj.com/api/auth/callback`.
+
+## Monitoring (Grafana Cloud)
+
+- Stack `fondzinnia691` (region EU, `prod-eu-west-2`), plan Free (10k serii, 14 dni). Remote write: `https://prometheus-prod-65-prod-eu-west-2.grafana.net/api/prom/push`, instance ID 3690435.
+- W klastrze tylko agent: Alloy (`infra/argocd/alloy.yaml`, Deployment w `monitoring`) + kube-state-metrics (`infra/argocd/kube-state-metrics.yaml`). Konfiguracja scrapowania w `infra/apps/monitoring/config.alloy` (ConfigMap `alloy-config`, przeładowanie automatyczne), token w SealedSecret `grafana-cloud` (`PROM_USERNAME`, `PROM_PASSWORD`). Każdy job ma listę dozwolonych metryk — nową metrykę trzeba dopisać do regexu `keep`. Walidacja: `alloy validate config.alloy`.
+- Źródła: kubelet (`/metrics/resource`, `/metrics` — wolumeny), API Maiday `/metrics` (liczby produktowe, niepubliczne — Ingress nie kieruje `/metrics`), CNPG (port 9187, w tym `barman_cloud_*` o backupach), Traefik (port 9100), cert-manager (9402), kube-state-metrics.
+- Do Grafana Cloud trafiają tylko metryki (sumy), bez logów i danych osobowych.
+- Dashboardy jako kod: `infra/grafana/dashboards/*.json` (folder „Maiday”, datasource uid `grafanacloud-prom`), wysyłane przez `.github/workflows/grafana.yml` (sekret repo `GRAFANA_TOKEN` — service account `github-dashboards`, rola Editor). Zmiany robione w UI trzeba wyeksportować do JSON, inaczej następny push je nadpisze.
+- Alerty: jeszcze nie skonfigurowane.
 
 ## Backupy bazy
 
