@@ -20,23 +20,26 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # Creating is idempotent: 409/412 mean the folder already exists.
+      # (A GET of a missing folder returns 403 for Editor service accounts, so it can't be used as a check.)
       - name: Ensure the Maiday folder exists
         run: |
-          status=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $GRAFANA_TOKEN" \
-            "$GRAFANA_URL/api/folders/$FOLDER_UID")
-          if [ "$status" = "404" ]; then
-            curl -sf -X POST -H "Authorization: Bearer $GRAFANA_TOKEN" -H 'Content-Type: application/json' \
-              -d "{\"uid\":\"$FOLDER_UID\",\"title\":\"Maiday\"}" "$GRAFANA_URL/api/folders"
-          elif [ "$status" != "200" ]; then
-            echo "Grafana returned $status for the folder check (token or URL wrong?)"; exit 1
-          fi
+          status=$(curl -s -o /tmp/folder.json -w '%{http_code}' -X POST \
+            -H "Authorization: Bearer $GRAFANA_TOKEN" -H 'Content-Type: application/json' \
+            -d "{\"uid\":\"$FOLDER_UID\",\"title\":\"Maiday\"}" "$GRAFANA_URL/api/folders")
+          case "$status" in
+            200|409|412) echo "folder ok ($status)" ;;
+            *) echo "Grafana returned $status creating the folder:"; cat /tmp/folder.json; exit 1 ;;
+          esac
 
       - name: Upload dashboards
         run: |
           for file in infra/grafana/dashboards/*.json; do
-            jq --arg folder "$FOLDER_UID" --arg msg "${GITHUB_SHA::7}" \
+            status=$(jq --arg folder "$FOLDER_UID" --arg msg "${GITHUB_SHA::7}" \
               '{dashboard: (. + {id: null}), folderUid: $folder, overwrite: true, message: $msg}' "$file" |
-              curl -sf -X POST -H "Authorization: Bearer $GRAFANA_TOKEN" -H 'Content-Type: application/json' \
-                --data-binary @- "$GRAFANA_URL/api/dashboards/db"
-            echo " <- $file"
+              curl -s -o /tmp/dashboard.json -w '%{http_code}' -X POST \
+                -H "Authorization: Bearer $GRAFANA_TOKEN" -H 'Content-Type: application/json' \
+                --data-binary @- "$GRAFANA_URL/api/dashboards/db")
+            echo "$status $file"
+            [ "$status" = "200" ] || { cat /tmp/dashboard.json; exit 1; }
           done
