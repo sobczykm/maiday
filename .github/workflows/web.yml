@@ -11,7 +11,15 @@ permissions:
   packages: write
 
 jobs:
+  adapted:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: public/index.html matches upstream + adapt.py
+        run: python3 app/web/adapt.py --check
+
   image:
+    needs: adapted
     uses: ./.github/workflows/image.yml
     with:
       name: web
