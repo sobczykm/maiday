@@ -7,6 +7,7 @@ resources:
 - db.yaml
 - backup.yaml
 - ingress.yaml
+- ingress-demo.yaml
 - google.sealed.yaml
 - s3.sealed.yaml
 # CI updates newTag after each build on main.

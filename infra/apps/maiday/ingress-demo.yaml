@@ -1,0 +1,25 @@
+# demo.maiday.julqaj.com: the demo build of the app (no sign-in, data only in the browser).
+# Separate Ingress and certificate, so the demo host can't hold up the main domain's certificate.
+# Only the web container: the demo never calls the API.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: maiday-demo
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt
+    traefik.ingress.kubernetes.io/router.middlewares: maiday-redirect-https@kubernetescrd
+spec:
+  tls:
+    - hosts: [demo.maiday.julqaj.com]
+      secretName: maiday-demo-tls
+  rules:
+    - host: demo.maiday.julqaj.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port:
+                  number: 80

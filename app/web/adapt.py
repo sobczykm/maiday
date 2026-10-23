@@ -9,8 +9,8 @@ Her file contains the app twice (Polish, then English), so most changes are made
 Every change names the exact text it replaces; if Julia's new version no longer contains that text
 the expected number of times, the script stops and says which change has to be updated.
 
-    python3 app/web/adapt.py           write public/index.html
-    python3 app/web/adapt.py --check   fail if public/index.html is not up to date
+    python3 app/web/adapt.py           write public/index.html and public/demo.html
+    python3 app/web/adapt.py --check   fail if they are not up to date
 """
 import sys
 from pathlib import Path
@@ -18,6 +18,7 @@ from pathlib import Path
 WEB = Path(__file__).resolve().parent
 UPSTREAM = WEB / "upstream" / "index.html"
 PUBLIC = WEB / "public" / "index.html"
+DEMO = WEB / "public" / "demo.html"  # served at the root of demo.maiday.julqaj.com (nginx.conf)
 
 TEXT = {
     "pl": {
@@ -118,7 +119,7 @@ def account_actions(t):
     location.reload();
   }}
   async function logout() {{
-    if (inClaude()) {{ showAuth(); return; }}
+    if (inClaude() || TRIAL) {{ showAuth(); return; }}
     try {{ await api('POST', '/api/auth/logout'); }} catch (e) {{}}
     location.reload();
   }}
@@ -210,7 +211,7 @@ CHANGES = [
     per_language("logout, account deletion", "  pfBtn.addEventListener('click', e => {", account_actions),
     both("account deletion goes through the API",
          "      onConfirm: () => {\n        const ids = new Set();",
-         "      onConfirm: () => {\n        if (!inClaude()) return deleteAccountApi();\n        const ids = new Set();"),
+         "      onConfirm: () => {\n        if (!inClaude() && !TRIAL) return deleteAccountApi();\n        const ids = new Set();"),
     both("logout in the profile menu",
          "b.setAttribute('aria-expanded', 'false'); showAuth('login'); } }, logoutIcon(),",
          "b.setAttribute('aria-expanded', 'false'); logout(); } }, logoutIcon(),"),
@@ -220,16 +221,16 @@ CHANGES = [
     per_language("legal documents (settings, sign-in screen)", "const LEGAL = { terms: '#', privacy: '#' };", legal_addresses),
     both("data migrations wait for the account's data (otherwise they run on the empty local state first)",
          "const dataReady = () => mode === 'local' || COLLS.every(c => HUB.ready && HUB.ready[c]);",
-         "const dataReady = () => inClaude() ? mode === 'local' || COLLS.every(c => HUB.ready && HUB.ready[c]) : apiLoaded;"),
+         "const dataReady = () => inClaude() || TRIAL ? mode === 'local' || COLLS.every(c => HUB.ready && HUB.ready[c]) : apiLoaded;"),
     both("Google sign-in",
          "  $('#auth-google').prepend(h('span', { class: 'auth-g', 'aria-hidden': 'true' }));\n"
          "  $('#auth-google').addEventListener('click', hideAuth);",
          f"  const GOOGLE_G = '{GOOGLE_G}';\n"
          "  { const g = h('span', { class: 'auth-g', 'aria-hidden': 'true' }); g.innerHTML = GOOGLE_G; $('#auth-google').prepend(g); }\n"
-         "  $('#auth-google').addEventListener('click', () => { if (inClaude()) hideAuth(); else location.href = '/api/auth/login'; });"),
+         "  $('#auth-google').addEventListener('click', () => { if (inClaude() || TRIAL) hideAuth(); else location.href = '/api/auth/login'; });"),
     *single("upload unavailable message", [
-        ("toast('Dodawanie zdjęć i plików działa w zapisanej wersji Maiday w Claude.')", "toast('Dodawanie zdjęć i plików będzie dostępne wkrótce.')"),
-        ("toast('Adding images and files works in the saved version of Maiday in Claude.')", "toast('Adding images and files will be available soon.')"),
+        ("'Dodawanie zdjęć i plików działa w zapisanej wersji Maiday w Claude.'", "'Dodawanie zdjęć i plików będzie dostępne wkrótce.'"),
+        ("'Adding images and files works in the saved version of Maiday in Claude.'", "'Adding images and files will be available soon.'"),
     ]),
     *single("upload unavailable tooltip", [
         ("'Zdjęcia i pliki działają w zapisanej wersji Maiday w Claude'", "'Zdjęcia i pliki będą dostępne wkrótce'"),
@@ -240,11 +241,18 @@ CHANGES = [
 ]
 
 
-def adapt(html):
-    if html.lstrip().lower().startswith("<!doctype"):
-        sys.exit("Julia's file already has a document skeleton: remove the \"document skeleton\" change from adapt.py")
+# Julia's demo link (maiday-trial.html) is the same app with the TRIAL flag on: no sign-in, data only in the browser.
+# We build it from the same upstream file instead of keeping a second copy.
+DEMO_CHANGES = [
+    both("TRIAL flag", "  const TRIAL = false;", "  const TRIAL = true;"),
+    both("separate local storage", "  const LS = 'maiday.v1';", "  const LS = 'maiday.trial';"),
+    once("title", "<title>Maiday</title>", "<title>Maiday – demo</title>"),
+]
+
+
+def apply(html, changes):
     problems = []
-    for name, old, news in CHANGES:
+    for name, old, news in changes:
         parts = html.split(old)
         if len(parts) - 1 != len(news):
             problems.append(f"  {name}: expected {len(news)}×, found {len(parts) - 1}×\n    {old.splitlines()[0][:120]}")
@@ -252,17 +260,26 @@ def adapt(html):
         html = parts[0] + "".join(new + rest for new, rest in zip(news, parts[1:]))
     if problems:
         sys.exit("Julia's version changed where these adaptations apply; update them in adapt.py:\n" + "\n".join(problems))
-    return html.rstrip("\n") + "\n</body>\n</html>\n"
+    return html
+
+
+def adapt(html):
+    if html.lstrip().lower().startswith("<!doctype"):
+        sys.exit("Julia's file already has a document skeleton: remove the \"document skeleton\" change from adapt.py")
+    return apply(html, CHANGES).rstrip("\n") + "\n</body>\n</html>\n"
 
 
 def main():
-    built = adapt(UPSTREAM.read_text(encoding="utf-8"))
+    app = adapt(UPSTREAM.read_text(encoding="utf-8"))
+    outputs = {PUBLIC: app, DEMO: apply(app, DEMO_CHANGES)}
     if "--check" in sys.argv:
-        if PUBLIC.read_text(encoding="utf-8") != built:
-            sys.exit("public/index.html is out of date: run python3 app/web/adapt.py")
+        for path, built in outputs.items():
+            if not path.exists() or path.read_text(encoding="utf-8") != built:
+                sys.exit(f"{path.relative_to(WEB.parent.parent)} is out of date: run python3 app/web/adapt.py")
         return
-    PUBLIC.write_text(built, encoding="utf-8")
-    print(f"{PUBLIC.relative_to(WEB.parent.parent)}: {len(CHANGES)} changes applied")
+    for path, built in outputs.items():
+        path.write_text(built, encoding="utf-8")
+    print(f"{PUBLIC.relative_to(WEB.parent.parent)}: {len(CHANGES)} changes applied; {DEMO.name}: + {len(DEMO_CHANGES)} for the demo")
 
 
 if __name__ == "__main__":

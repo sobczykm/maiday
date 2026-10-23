@@ -1136,7 +1136,7 @@ input:not([type="checkbox"]):not([type="radio"]):not(.md-title):not(.title), tex
 .btn.primary { font-weight: 600; }
 #draft-desc, .dd.dd-date, .rep .dd, .rep-num, .md-link-form input, .task-extra input, .list .add input[type="text"], .row2 input { font-size: 15px; }
 #md-save { min-height: 40px; padding: 0 16px; }
-#md-save, #md-dup, #md-move, #md-delete { font-size: 15px; }
+#md-save, #md-dup, #md-move, #md-delete, #md-remind { font-size: 15px; }
 
 /* Notebook folders on phones: 2 × 2 grid — all notes, add folder, then two folders */
 @media (max-width: 640px) {
@@ -1625,6 +1625,8 @@ svg.lu { flex: none; }
 .cl-item { display: flex; align-items: center; gap: 10px; min-height: 38px; padding: 2px 4px; border-radius: 8px; cursor: pointer; user-select: none; -webkit-user-select: none; }
 .cl-item:hover { background: var(--bg); }
 .cl-item input[type="checkbox"] { flex: none; }
+.cl-item input[type="checkbox"].tl-check.cl-check { --dot: var(--accent); width: 22px; height: 22px; } /* round, like the to-do lists */
+@media (max-width: 640px), (pointer: coarse) { .cl-item input[type="checkbox"].tl-check.cl-check { width: 26px; height: 26px; } }
 .cl-text { flex: 1; min-width: 0; font-size: 15px; overflow-wrap: anywhere; }
 .cl-item.done .cl-text { color: var(--muted); text-decoration: line-through; }
 .cl-x { opacity: 0; transition: opacity .15s; }
@@ -1824,6 +1826,18 @@ input::placeholder, textarea::placeholder { color: var(--muted); opacity: 1; }
   .modal-card.is-view .md-foot { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .modal-card.is-view .md-foot > :not(.view-only) { display: none; }
   .md-foot #md-dup, .md-foot #md-move, .md-foot #md-delete, .md-foot #md-edit-foot { padding: 0 10px; width: 100%; white-space: nowrap; }
+  /* one size for every button; order: Duplikuj · Przenieś / Edytuj · Usuń / Przypomnij mi (full width) */
+  .modal-card.is-view .md-foot > .view-only { min-height: 44px !important; height: auto; font-size: 15px !important; font-weight: 500; border-radius: 10px; }
+  .modal-card.is-view .md-foot > #md-dup { order: 1; } .modal-card.is-view .md-foot > #md-move { order: 2; }
+  .modal-card.is-view .md-foot > #md-edit-foot { order: 3; } .modal-card.is-view .md-foot > #md-delete { order: 4; flex-basis: auto; }
+  .modal-card.is-view .md-foot > #md-remind { order: 5; grid-column: 1 / -1; width: 100%; margin: 0; }
+  /* no "Przenieś" (done task): Duplikuj · Edytuj · Usuń fit in one row */
+  .modal-card.is-view .md-foot:has(> #md-move[hidden]) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .modal-card.is-view .md-foot:has(> #md-move[hidden]) > .view-only { padding: 0 6px; }
+}
+/* phones: every button in the task details footer uses the same type size and weight */
+@media (max-width: 640px), (pointer: coarse) {
+  #task-modal .modal-card.is-view .md-foot > button, #task-modal .modal-card.is-view .md-foot > button * { font-size: 15px !important; font-weight: 500 !important; }
 }
 
 /* Bigger close "x" in dialogs on phones */
@@ -2120,6 +2134,12 @@ html.auth-open, html.auth-open body { overflow: hidden; }
 
 .auth-switch a { color: var(--accent); font-weight: 600; text-decoration: none; margin-left: 4px; }
 .auth-switch a:hover { text-decoration: underline; }
+/* demo link: accent button with white text, no Google mark, no "no Google account" line */
+.auth.is-trial .auth-google, :root .auth.is-trial .auth-google { background: var(--accent); color: #fff; border: 0; font-weight: 600; }
+.auth.is-trial .auth-google:hover { background: color-mix(in srgb, var(--accent) 88%, #000); color: #fff; }
+.auth.is-trial .auth-g, .auth.is-trial .auth-switch { display: none !important; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .auth.is-trial .auth-google { color: var(--accent-ink); } }
+:root[data-theme="dark"] .auth.is-trial .auth-google { color: var(--accent-ink); }
 .auth-logo svg { display: block; }
 
 /* Auth: wider tiles, content aligned left (button label stays centred) */
@@ -3633,31 +3653,31 @@ input[type="checkbox"]:checked::after { border: 0 !important; transform: none !i
     </div>
     <div class="md-meta">
       <div class="md-field"><span id="md-date-lbl">Data</span><input type="hidden" id="md-date"><span class="md-val view-only" id="md-date-view"></span><button type="button" class="dd dd-date edit-only" id="md-date-btn" aria-haspopup="dialog" aria-expanded="false"><svg class="dd-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><rect x="2.5" y="3.5" width="11" height="10" rx="1.5"/><path d="M2.5 6.5h11M5.5 2v3M10.5 2v3"/></svg><span class="dd-label"></span><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></button></div>
+      <div class="md-field"><span>Czas trwania</span>
+        <span class="md-val view-only" id="md-dur-view"></span><input type="hidden" id="md-dur"><div class="dd dd-field dur-field edit-only" id="md-dur-wrap"><svg class="dd-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 1.8h4M8 1.8v2"/><circle cx="8" cy="9.2" r="5"/><path d="M8 6.6v2.6l1.8 1.1"/></svg><input type="text" id="md-dur-input" data-nofl="1" class="time-input" inputmode="numeric" placeholder="_ h __ min" maxlength="14" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="menu" aria-expanded="false" aria-label="Czas trwania, np. 45 min albo 1:30"></div>
+      </div>
       <div class="md-field"><span>Godzina</span>
         <input type="hidden" id="md-time">
         <span class="md-val view-only" id="md-time-view"></span><div class="dd dd-field edit-only" id="md-time-wrap"><svg class="dd-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path d="M8 5v3l2 1.5"/></svg><input type="text" id="md-time-input" data-nofl="1" class="time-input" inputmode="numeric" placeholder="__-__" maxlength="5" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="menu" aria-expanded="false" aria-label="Godzina, np. 9:30"></div>
       </div>
-      <div class="md-field"><span>Czas trwania</span>
-        <span class="md-val view-only" id="md-dur-view"></span><input type="hidden" id="md-dur"><div class="dd dd-field dur-field edit-only" id="md-dur-wrap"><svg class="dd-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 1.8h4M8 1.8v2"/><circle cx="8" cy="9.2" r="5"/><path d="M8 6.6v2.6l1.8 1.1"/></svg><input type="text" id="md-dur-input" data-nofl="1" class="time-input" inputmode="numeric" placeholder="_ h __ min" maxlength="14" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="menu" aria-expanded="false" aria-label="Czas trwania, np. 45 min albo 1:30"></div>
-      </div>
     </div>
-    <section class="md-sec" id="md-sec-labels">
-      <h3>Etykieta</h3>
-      <div class="md-labels" id="md-labels"></div>
-    </section>
     <section class="md-sec" id="md-sec-repeat">
       <h3>Powtarzanie</h3>
       <p class="md-rep-view view-only" id="md-rep-view"></p>
       <div class="edit-only" id="md-rep-edit"></div>
     </section>
     <section class="md-sec" id="md-sec-desc">
-      <h3><label for="md-desc">Opis</label></h3>
+      <h3 class="view-only"><label for="md-desc">Opis</label></h3>
       <div class="md-desc-view view-only" id="md-desc-view"></div>
-      <textarea id="md-desc" rows="3" placeholder="Dodaj opis, notatki lub szczegóły…"></textarea>
+      <textarea id="md-desc" rows="3" placeholder="Opis zadania"></textarea>
     </section>
     <section class="md-sec" id="md-sec-list">
       <div class="md-sec-head"><h3>Lista</h3><span class="cl-progress" id="md-list-progress"></span></div>
       <div class="cl" id="md-list"></div>
+    </section>
+    <section class="md-sec" id="md-sec-labels">
+      <h3>Etykieta</h3>
+      <div class="md-labels" id="md-labels"></div>
     </section>
     <section class="md-sec" id="md-sec-images">
       <div class="md-sec-head"><h3>Zdjęcia</h3></div>
@@ -3797,7 +3817,7 @@ input[type="checkbox"]:checked::after { border: 0 !important; transform: none !i
   <div id="cal-body"></div>
   <section class="panel" id="cal-day" hidden aria-labelledby="cal-day-h">
     <div class="panel-head"><h2 id="cal-day-h">Zadania</h2><span class="meta" id="cal-day-meta"></span></div>
-    <form class="add task-add" id="cal-task-form" autocomplete="off">
+    <form class="add task-add" id="cal-task-form" autocomplete="off" hidden>
       <input type="hidden" id="cal-task-time">
           <div class="dd dd-field" id="cal-task-time-wrap"><svg class="dd-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path d="M8 5v3l2 1.5"/></svg><input type="text" id="cal-task-time-input" data-label="Godzina" class="time-input" inputmode="numeric" placeholder="__-__" maxlength="5" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="menu" aria-expanded="false" aria-label="Godzina (opcjonalnie), np. 9:30"></div>
       <label class="sr" for="cal-task-text">Zadanie</label>
@@ -4192,31 +4212,31 @@ input[type="checkbox"]:checked::after { border: 0 !important; transform: none !i
     </div>
     <div class="md-meta">
       <div class="md-field"><span id="md-date-lbl">Date</span><input type="hidden" id="md-date"><span class="md-val view-only" id="md-date-view"></span><button type="button" class="dd dd-date edit-only" id="md-date-btn" aria-haspopup="dialog" aria-expanded="false"><svg class="dd-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><rect x="2.5" y="3.5" width="11" height="10" rx="1.5"/><path d="M2.5 6.5h11M5.5 2v3M10.5 2v3"/></svg><span class="dd-label"></span><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></button></div>
+      <div class="md-field"><span>Duration</span>
+        <span class="md-val view-only" id="md-dur-view"></span><input type="hidden" id="md-dur"><div class="dd dd-field dur-field edit-only" id="md-dur-wrap"><svg class="dd-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 1.8h4M8 1.8v2"/><circle cx="8" cy="9.2" r="5"/><path d="M8 6.6v2.6l1.8 1.1"/></svg><input type="text" id="md-dur-input" data-nofl="1" class="time-input" inputmode="numeric" placeholder="_ h __ min" maxlength="14" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="menu" aria-expanded="false" aria-label="Duration, e.g. 45 min or 1:30"></div>
+      </div>
       <div class="md-field"><span>Time</span>
         <input type="hidden" id="md-time">
         <span class="md-val view-only" id="md-time-view"></span><div class="dd dd-field edit-only" id="md-time-wrap"><svg class="dd-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path d="M8 5v3l2 1.5"/></svg><input type="text" id="md-time-input" data-nofl="1" class="time-input" inputmode="numeric" placeholder="__-__" maxlength="5" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="menu" aria-expanded="false" aria-label="Time, e.g. 9:30"></div>
       </div>
-      <div class="md-field"><span>Duration</span>
-        <span class="md-val view-only" id="md-dur-view"></span><input type="hidden" id="md-dur"><div class="dd dd-field dur-field edit-only" id="md-dur-wrap"><svg class="dd-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 1.8h4M8 1.8v2"/><circle cx="8" cy="9.2" r="5"/><path d="M8 6.6v2.6l1.8 1.1"/></svg><input type="text" id="md-dur-input" data-nofl="1" class="time-input" inputmode="numeric" placeholder="_ h __ min" maxlength="14" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="menu" aria-expanded="false" aria-label="Duration, e.g. 45 min or 1:30"></div>
-      </div>
     </div>
-    <section class="md-sec" id="md-sec-labels">
-      <h3>Label</h3>
-      <div class="md-labels" id="md-labels"></div>
-    </section>
     <section class="md-sec" id="md-sec-repeat">
       <h3>Repeat</h3>
       <p class="md-rep-view view-only" id="md-rep-view"></p>
       <div class="edit-only" id="md-rep-edit"></div>
     </section>
     <section class="md-sec" id="md-sec-desc">
-      <h3><label for="md-desc">Description</label></h3>
+      <h3 class="view-only"><label for="md-desc">Description</label></h3>
       <div class="md-desc-view view-only" id="md-desc-view"></div>
-      <textarea id="md-desc" rows="3" placeholder="Add a description, notes or details…"></textarea>
+      <textarea id="md-desc" rows="3" placeholder="Task description"></textarea>
     </section>
     <section class="md-sec" id="md-sec-list">
       <div class="md-sec-head"><h3>Checklist</h3><span class="cl-progress" id="md-list-progress"></span></div>
       <div class="cl" id="md-list"></div>
+    </section>
+    <section class="md-sec" id="md-sec-labels">
+      <h3>Label</h3>
+      <div class="md-labels" id="md-labels"></div>
     </section>
     <section class="md-sec" id="md-sec-images">
       <div class="md-sec-head"><h3>Photos</h3></div>
@@ -4356,7 +4376,7 @@ input[type="checkbox"]:checked::after { border: 0 !important; transform: none !i
   <div id="cal-body"></div>
   <section class="panel" id="cal-day" hidden aria-labelledby="cal-day-h">
     <div class="panel-head"><h2 id="cal-day-h">Tasks</h2><span class="meta" id="cal-day-meta"></span></div>
-    <form class="add task-add" id="cal-task-form" autocomplete="off">
+    <form class="add task-add" id="cal-task-form" autocomplete="off" hidden>
       <input type="hidden" id="cal-task-time">
           <div class="dd dd-field" id="cal-task-time-wrap"><svg class="dd-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path d="M8 5v3l2 1.5"/></svg><input type="text" id="cal-task-time-input" data-label="Time" class="time-input" inputmode="numeric" placeholder="__-__" maxlength="5" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="menu" aria-expanded="false" aria-label="Time (optional), e.g. 9:30"></div>
       <label class="sr" for="cal-task-text">Task</label>
@@ -4617,6 +4637,10 @@ window.MAIDAY_APP.pl = () => {
   }
   const setRaw = (c, obj) => { R[c].set(obj.id, obj); S[c].set(obj.id, overlay(c, obj)); };
   const dropRaw = (c, id) => { R[c].delete(id); S[c].delete(id); };
+  // TRIAL = the standalone demo build (separate link): no sign-in, no account, nothing sent to a server — data stays only in this browser (localStorage)
+  const TRIAL = false;
+  const TRIAL_UP = 'W tej przeglądarce nie da się zapisać zdjęć ani plików wersji demo.';
+  const TRIAL_URLS = new Map(); // demo: asset id -> object URL of the file kept in this browser (IndexedDB)
   let mode = 'local', refs = null, readOnly = false;
   const LS = 'maiday.v1';
 
@@ -4675,7 +4699,38 @@ window.MAIDAY_APP.pl = () => {
   // One connection to the saved data for the whole page: when the language is switched, the new app instance
   // reuses it (no second `use('db')`, no unsubscribe / re-subscribe), so the data never has to be fetched again.
   const HUB = window.MAIDAY_HUB || (window.MAIDAY_HUB = { conn: null, subscribed: {}, last: {}, err: {}, fns: {}, cleared: {} });
+  // ---- demo files: photos and attachments are kept in this browser's IndexedDB (same interface as the account file store) ----
+  function trialFiles() {
+    if (!window.indexedDB) return;
+    let dbp = null;
+    const db = () => dbp || (dbp = new Promise((res, rej) => { const r = indexedDB.open('maiday-trial-files', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('files', { keyPath: 'id' }); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }));
+    const tx = (mode, fn) => db().then(d => new Promise((res, rej) => { const t = d.transaction('files', mode), st = t.objectStore('files'); const out = fn(st);
+      t.oncomplete = () => res(out && out.result); t.onerror = t.onabort = () => rej(t.error); }));
+    const newId = () => Array.from(crypto.getRandomValues(new Uint8Array(18)), b => 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_'[b & 63]).join('');
+    const api = {
+      async upload(file, opts = {}) {
+        const type = opts.type || file.type || 'application/octet-stream';
+        if (file.size > (type === 'image/svg+xml' ? 2 : 20) * 1048576) throw { code: 'too_large' };
+        const id = newId(), blob = file.slice(0, file.size, type);
+        try { await tx('readwrite', st => st.put({ id, blob, type, name: file.name || '', size: file.size, created: Date.now() })); }
+        catch (e) { throw { code: e && e.name === 'QuotaExceededError' ? 'quota_or_state' : 'store_unavailable' }; }
+        TRIAL_URLS.set(id, URL.createObjectURL(blob));
+        try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
+        return { id, contentType: type, sizeBytes: file.size };
+      },
+      async delete(id) { await tx('readwrite', st => st.delete(id)); const u = TRIAL_URLS.get(id); if (u) { URL.revokeObjectURL(u); TRIAL_URLS.delete(id); } }
+    };
+    tx('readonly', st => st.getAll()).then(rows => {
+      for (const r of rows || []) if (r && r.id && r.blob) TRIAL_URLS.set(r.id, URL.createObjectURL(r.blob));
+      if (disposed) return;
+      assetsApi = api; updateUploadUI(); render();
+      // pictures already on screen (e.g. inside an open note) point at the files now
+      document.querySelectorAll('img[data-asset]').forEach(img => { const u = TRIAL_URLS.get(img.dataset.asset); if (u) img.src = u; });
+    }).catch(() => {});
+  }
   async function connect() {
+    if (TRIAL) { trialFiles(); return; } // demo: stays in local mode, never connects to the account store; files live in IndexedDB
     if (!window.claude || typeof window.claude.use !== 'function') return;
     try {
       if (!HUB.conn) HUB.conn = (async () => {
@@ -5481,7 +5536,7 @@ window.MAIDAY_APP.pl = () => {
     if (!text) setFieldError($('#task-text'), 'Wpisz tytuł zadania. To jedyne obowiązkowe pole.', timeOk && durOk);
     if (!timeOk || !durOk || !text) return;
     draft.desc = $('#draft-desc').value;
-    put('tasks', { id: uid(), date: sel, time: $('#task-time').value || '', text, desc: draft.desc.trim(), labels: draft.labels.slice(),
+    put('tasks', { id: uid(), date: taskFormInCal() ? calDate : sel, time: $('#task-time').value || '', text, desc: draft.desc.trim(), labels: draft.labels.slice(),
       images: draft.images.slice(), files: draft.files.slice(), links: draft.links.slice(), repeat: draft.repeat ? { ...draft.repeat } : null, dur: draft.dur || 0, items: draft.items.slice(), done: false, created: Date.now(),
       ...(draft.days > 1 && !$('#task-draft').hidden ? { days: draft.days, time: '', dur: 0, repeat: null } : {}) });
     resetDraft(false);
@@ -5506,7 +5561,7 @@ window.MAIDAY_APP.pl = () => {
     box.replaceChildren(...[
       list.length ? h('ul', { class: 'cl-list' }, list.map(it => h('li', { class: 'cl-item' + (it.done ? ' done' : ''),
         onclick: e => { if (e.target.closest('button, input')) return; set(list.map(x => x.id === it.id ? { ...x, done: !x.done } : x)); } },
-        h('input', { type: 'checkbox', checked: !!it.done, 'aria-label': (it.done ? 'Odznacz: ' : 'Odhacz: ') + it.text,
+        h('input', { type: 'checkbox', class: 'tl-check cl-check', checked: !!it.done, 'aria-label': (it.done ? 'Odznacz: ' : 'Odhacz: ') + it.text,
           onchange: e => set(list.map(x => x.id === it.id ? { ...x, done: e.target.checked } : x)) }),
         h('span', { class: 'cl-text' }, it.text),
         opts.readonlyRemove ? null : h('button', { type: 'button', class: 'tool danger cl-x', title: 'Usuń pozycję', 'aria-label': 'Usuń pozycję: ' + it.text,
@@ -5612,7 +5667,7 @@ window.MAIDAY_APP.pl = () => {
   const ICON_DOC = '<path d="M4 2.5h5.5l3 3v8H4z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>';
   const ICON_PLUS = '<path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>';
   const ASSET_ID = /^[A-Za-z0-9_-]{8,64}$/;
-  const blobUrl = id => '/_blob/' + id;
+  const blobUrl = id => (TRIAL && TRIAL_URLS.get(id)) || '/_blob/' + id;
   // covers offered in the pickers: 4 colours + 4 graphics (files published next to the page, in covers/)
   const art = f => `url("covers/${f}.webp?v=2") center / cover no-repeat border-box, #DDD`;
   const COVERS = {
@@ -5746,7 +5801,7 @@ window.MAIDAY_APP.pl = () => {
   }
   const isInlineImage = t => /^image\/(png|jpeg|gif|webp|svg\+xml)$/.test(t || '');
   async function upload(file) {
-    if (!assetsApi) { toast('Dodawanie zdjęć i plików działa w zapisanej wersji Maiday w Claude.'); return null; }
+    if (!assetsApi) { toast(TRIAL ? TRIAL_UP : 'Dodawanie zdjęć i plików działa w zapisanej wersji Maiday w Claude.'); return null; }
     const type = typeOf(file);
     if (!type) { toast(`Nie można dodać „${file.name}”. ${SUPPORTED_MSG}`, 7000); return null; }
     busy(1);
@@ -5777,7 +5832,7 @@ window.MAIDAY_APP.pl = () => {
     document.querySelectorAll('.up').forEach(b => {
       b.disabled = !assetsApi;
       const nm = b.getAttribute('aria-label') || ((b.querySelector('.ff-lbl') || b).textContent || '').trim();
-      if (assetsApi) { if (nm) b.title = nm; else b.removeAttribute('title'); } else b.title = 'Zdjęcia i pliki działają w zapisanej wersji Maiday w Claude';
+      if (assetsApi) { if (nm) b.title = nm; else b.removeAttribute('title'); } else b.title = TRIAL ? TRIAL_UP : 'Zdjęcia i pliki działają w zapisanej wersji Maiday w Claude';
     });
   }
 
@@ -5844,7 +5899,7 @@ window.MAIDAY_APP.pl = () => {
     openPop(anchor, h('div', { class: 'pop-body' },
       h('span', { class: 'pop-title' }, 'Okładka'),
       h('div', { class: 'swatches' }, Object.entries(COVERS).map(([k, v]) => h('button', { type: 'button', class: k.startsWith('art-') ? 'art' : null, style: 'background: ' + v, 'aria-label': 'Okładka: ' + COVER_PL[k], title: COVER_PL[k], onclick: () => { closePop(); onPick({ type: 'color', value: k }); } }))),
-      h('button', { class: 'btn up', type: 'button', 'aria-label': 'Wgraj zdjęcie', disabled: !assetsApi, title: assetsApi ? '' : 'Wgrywanie działa w zapisanej wersji Maiday w Claude', onclick: () => { closePop(); onUpload(); } }, 'Wgraj zdjęcie'),
+      h('button', { class: 'btn up', type: 'button', 'aria-label': 'Wgraj zdjęcie', disabled: !assetsApi, title: assetsApi ? '' : TRIAL ? TRIAL_UP : 'Wgrywanie działa w zapisanej wersji Maiday w Claude', onclick: () => { closePop(); onUpload(); } }, 'Wgraj zdjęcie'),
       current ? h('button', { class: 'textbtn', type: 'button', onclick: () => { closePop(); onPick(null); } }, 'Usuń okładkę') : null
     ), 'Wybierz okładkę');
   }
@@ -6690,7 +6745,8 @@ window.MAIDAY_APP.pl = () => {
     const ico = durWrap.querySelector('.dd-ico'); if (ico) ico.remove(); // the unit select already shows the clock
     const dd = dropdown(usel, ubtn, { label: 'Jednostka czasu trwania', minWidth: 150, itemIcon: v => UNIT_ICO[v],
       onSync: v => { ubtn.querySelector('.dd-label').replaceChildren(svg(UNIT_ICO[v === 'd' ? 'd' : 'h'])); ubtn.title = v === 'd' ? 'Dni' : 'Godziny'; ubtn.setAttribute('aria-label', 'Jednostka czasu trwania: ' + (v === 'd' ? 'dni' : 'godziny')); } });
-    usel.addEventListener('change', () => { if (usel.value === 'd') { if (!(cfg.get() > 1)) cfg.set(2); } else cfg.set(0); });
+    let lastDays = 2;
+    usel.addEventListener('change', () => { if (usel.value === 'd') { if (!(cfg.get() > 1)) cfg.set(lastDays); } else { if (cfg.get() > 1) lastDays = +cfg.get(); cfg.set(0); } });
     const ctl = {
       row, range,
       paint() {
@@ -6710,14 +6766,23 @@ window.MAIDAY_APP.pl = () => {
   const taskTimeDD = timeField('task-time');
   const calTimeDD = timeField('cal-task-time');
   const draftDurF = timeField('draft-dur', v => { draft.dur = +v || 0; renderDraft(); }, DUR_CFG);
+  // switching "Czas trwania" to days and back keeps what was typed for hours (duration, time, repeat)
+  let draftHoursStash = null;
   const draftSpan = spanCtl($('#draft-dur-wrap'), {
     get: () => draft.days, start: () => sel,
     set: d => {
+      const was = draft.days > 1;
       draft.days = d > 1 ? d : 0;
+      if (draft.days && !was) draftHoursStash = { dur: draft.dur, durV: $('#draft-dur').value, time: $('#task-time').value, repeat: draft.repeat };
       if (draft.days) {
         draft.dur = 0; $('#draft-dur').value = ''; draftDurF.sync();
         draft.repeat = null; draftRep.reset();
         $('#task-time').value = ''; taskTimeDD.sync();
+      } else if (was && draftHoursStash) {
+        const st = draftHoursStash; draftHoursStash = null;
+        draft.dur = st.dur; $('#draft-dur').value = st.durV; draftDurF.sync();
+        $('#task-time').value = st.time; taskTimeDD.sync();
+        draft.repeat = st.repeat; draftRep.reset();
       }
       renderDraft();
     }
@@ -6737,12 +6802,15 @@ window.MAIDAY_APP.pl = () => {
   const mdCard = modal.querySelector('.modal-card');
   const mdTimeField = timeField('md-time', v => mdChange({ time: v }));
   const mdDurField = timeField('md-dur', v => mdChange({ dur: +v || 0 }), DUR_CFG);
+  let mdHoursStash = null;
   const mdSpan = spanCtl($('#md-dur-wrap'), {
     get: () => mdDraft ? mdDraft.days : 0, start: () => mdDraft ? mdDraft.date : today,
     set: d => {
       if (!mdEdit) return;
-      const days = d > 1 ? d : 0;
+      const days = d > 1 ? d : 0, was = mdDraft && mdDraft.days > 1;
+      if (days && !was && mdDraft) mdHoursStash = { time: mdDraft.time || '', dur: mdDraft.dur || 0, repeat: mdDraft.repeat || null };
       if (days) { $('#md-time').value = ''; mdTimeField.sync(); $('#md-dur').value = ''; mdDurField.sync(); }
+      if (!days && was && mdHoursStash) { const st = mdHoursStash; mdHoursStash = null; $('#md-time').value = st.time; mdTimeField.sync(); $('#md-dur').value = st.dur ? String(st.dur) : ''; mdDurField.sync(); mdChange({ days: 0, time: st.time, dur: st.dur, repeat: st.repeat }); return; }
       mdChange(days ? { days, time: '', dur: 0, repeat: null } : { days: 0 });
     }
   });
@@ -7526,7 +7594,18 @@ window.MAIDAY_APP.pl = () => {
   function setMode(m) { calMode = m; try { localStorage.setItem('maiday.calmode', m); } catch (e) {} renderCalendar(); }
   const openDay = k => { calDate = k; setMode('day'); };
 
+  // the day view of the calendar uses the very same task form as the Dashboard (title, Szczegóły with time, duration, repeat… and Dodaj):
+  // the form moves between the two places, so both look and work identically
+  const taskFormHome = { parent: $('#task-form').parentNode, next: $('#task-form').nextSibling };
+  const taskFormInCal = () => !!$('#task-form').closest('#cal-day');
+  function placeTaskForm() {
+    const f = $('#task-form'), inCal = view === 'calendar' && calMode === 'day';
+    $('#cal-task-form').hidden = true;
+    if (inCal && !taskFormInCal()) $('#cal-day .panel-head').after(f);
+    else if (!inCal && taskFormInCal()) taskFormHome.parent.insertBefore(f, taskFormHome.next);
+  }
   function renderCalendar() {
+    placeTaskForm();
     if (dnd && dnd.active) { dnd.dirty = true; return; }
     document.querySelectorAll('.seg button[data-mode]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === calMode)));
     const byDate = tasksByDate(addDays(calDate, -45), addDays(calDate, 45));
@@ -8030,7 +8109,23 @@ window.MAIDAY_APP.pl = () => {
     job: { coll: 'jobs', title: 'Oferta pracy', fields: ['company', 'role', 'url', 'posted', 'deadline', 'status', 'desc', 'cv'] },
     cx: { coll: 'rows', title: 'Pozycja', fields: [] }
   };
-  function recField(label, control, opts = {}) { return h('div', { class: 'rec-f' + (opts.wide ? ' wide' : '') }, h('span', { class: 'rec-l' }, label), control); }
+  function recField(label, control, opts = {}) {
+    // text fields follow the design system: the label sits inside the field and floats up on focus / when filled; the hint shows as placeholder while typing
+    const ctl = control && control.dataset && control.dataset.nofl && (control.tagName === 'TEXTAREA' || (control.tagName === 'INPUT' && /^(text|number|url|email|tel|search)$/.test(control.type))) ? control : null;
+    if (ctl && !opts.caption) {
+      delete ctl.dataset.nofl; ctl.dataset.label = label; if (!ctl.getAttribute('aria-label')) ctl.setAttribute('aria-label', label);
+      return h('div', { class: 'rec-f rec-f-fl' + (opts.wide ? ' wide' : '') }, ctl);
+    }
+    // single dropdown / date button: the label rests on the field's top edge (it always shows a value, e.g. "Bez statusu")
+    const one = control && control.classList && (control.classList.contains('rec-sel') || control.classList.contains('rec-date')) && control.querySelectorAll('.dd').length === 1;
+    if (one && !opts.caption) {
+      control.classList.add('fl-box', 'has-value', 'rec-fl-dd');
+      control.append(h('span', { class: 'fl-label', 'aria-hidden': 'true' }, label));
+      const btn = control.querySelector('.dd'); if (btn && !btn.getAttribute('aria-label')) btn.setAttribute('aria-describedby', (btn.id || '') + '-cap');
+      return h('div', { class: 'rec-f rec-f-fl' + (opts.wide ? ' wide' : '') }, h('span', { class: 'sr', id: (btn && btn.id ? btn.id : 'x') + '-cap' }, label), control);
+    }
+    return h('div', { class: 'rec-f' + (opts.wide ? ' wide' : '') }, h('span', { class: 'rec-l' }, label), control);
+  }
   function recSelect(id, options, value, onChange) {
     const sel = h('select', { id, hidden: true }, options.map(([v, l]) => h('option', { value: v }, l)));
     const btn = h('button', { type: 'button', class: 'dd', id: id + '-btn', 'aria-haspopup': 'listbox', 'aria-expanded': 'false' }, h('span', { class: 'dd-label' }), svg('<path d="m4 6 4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>'));
@@ -8518,6 +8613,7 @@ window.MAIDAY_APP.pl = () => {
     if (edExpanded) setExpanded(false);
     view = v;
     for (const x of VIEWS) $('#view-' + x).hidden = x !== v;
+    placeTaskForm();
     $('#view-cx').hidden = !v.startsWith('p:');
     if (CX_READY) paintNav();
     document.querySelectorAll('.tab, .nav-item').forEach(t => t.setAttribute('aria-current', t.dataset.view === v ? 'page' : 'false'));
@@ -8669,6 +8765,7 @@ window.MAIDAY_APP.pl = () => {
 
   // ---- profile (sample data until Google sign-in is wired up) ----
   const PROFILE = { name: 'Julia Jędrzejczak', email: 'j.jedrzejczak@gmail.com' };
+  if (TRIAL) Object.assign(PROFILE, { name: 'Wersja demo', email: 'Dane tylko w tej przeglądarce' });
   const profileBits = () => [
     h('span', { class: 'pf-ava', 'aria-hidden': 'true' }, luSvg('User', 1.9) || svg('<circle cx="8" cy="5.5" r="2.7" stroke="currentColor" stroke-width="1.4"/><path d="M3 13.5c.8-2.4 2.7-3.6 5-3.6s4.2 1.2 5 3.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>')),
     h('span', { class: 'pf-txt' }, h('b', {}, PROFILE.name), h('small', {}, PROFILE.email))];
@@ -8680,10 +8777,15 @@ window.MAIDAY_APP.pl = () => {
   const deleteIcon = () => luSvg('UserX', 1.9) || svg('<circle cx="6.5" cy="5.5" r="2.7" stroke="currentColor" stroke-width="1.4"/><path d="M1.8 13.5c.7-2.3 2.5-3.6 4.7-3.6 1.2 0 2.3.4 3.1 1M11 9.5l3 3M14 9.5l-3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>');
   // Deleting the account removes every saved record and uploaded file (the Google account itself is untouched; at deployment this also calls the server)
   function deleteAccount() {
-    confirmDialog({
+    confirmDialog(Object.assign(TRIAL ? {
+      title: 'Wyczyścić dane demo?',
+      message: 'Usuniemy wszystko, co dodałaś w wersji demo w tej przeglądarce: zadania, nawyki, notatki, listy, zakładki, zdjęcia i pliki. Tej operacji nie można cofnąć.',
+      confirm: 'Wyczyść dane',
+    } : {
       title: 'Usunąć konto?',
       message: 'Usuniemy Twoje konto w Maiday i wszystkie dane: zadania, nawyki, notatki, materiały i oferty pracy razem z wgranymi zdjęciami i plikami. Tej operacji nie można cofnąć. Jeśli chcesz coś zachować, najpierw zrób kopię zapasową.',
       confirm: 'Usuń konto',
+    }, {
       onConfirm: () => {
         const ids = new Set();
         const walk = (v, key) => {
@@ -8695,17 +8797,17 @@ window.MAIDAY_APP.pl = () => {
         for (const c of COLLS) for (const r of [...S[c].values()]) { walk(r); del(c, r.id); }
         dropAssets([...ids]);
         showAuth('login');
-        toast('Konto i wszystkie dane zostały usunięte.', 3500);
+        toast(TRIAL ? 'Dane demo zostały usunięte.' : 'Konto i wszystkie dane zostały usunięte.', 3500);
       }
-    });
+    }));
   }
   pfBtn.addEventListener('click', e => {
     const b = e.currentTarget;
     if (!pop.hidden && popAnchor === b) { closePop(); b.setAttribute('aria-expanded', 'false'); return; }
     b.setAttribute('aria-expanded', 'true');
     openPop(b, h('div', { class: 'pf-pop', role: 'menu' },
-      h('button', { type: 'button', class: 'pf-logout', role: 'menuitem', onclick: () => { closePop(); b.setAttribute('aria-expanded', 'false'); showAuth('login'); } }, logoutIcon(), 'Wyloguj'),
-      h('button', { type: 'button', class: 'pf-logout pf-delete', role: 'menuitem', onclick: () => { closePop(); b.setAttribute('aria-expanded', 'false'); deleteAccount(); } }, deleteIcon(), 'Usuń konto')), 'Profil');
+      h('button', { type: 'button', class: 'pf-logout', role: 'menuitem', onclick: () => { closePop(); b.setAttribute('aria-expanded', 'false'); showAuth('login'); } }, logoutIcon(), TRIAL ? 'Zakończ demo' : 'Wyloguj'),
+      h('button', { type: 'button', class: 'pf-logout pf-delete', role: 'menuitem', onclick: () => { closePop(); b.setAttribute('aria-expanded', 'false'); deleteAccount(); } }, deleteIcon(), TRIAL ? 'Wyczyść dane demo' : 'Usuń konto')), 'Profil');
     const lo = pop.querySelector('.pf-logout'); if (lo) lo.focus();
   });
 
@@ -8719,6 +8821,12 @@ window.MAIDAY_APP.pl = () => {
     $('#auth-google-lbl').textContent = 'Kontynuuj z Google';
     const legal = label => legalLink(label === 'Regulamin' ? 'terms' : 'privacy', label);
     $('#auth-note').replaceChildren('Logujesz się kontem Google \u2014 przy pierwszym wejściu utworzymy Twoje konto (pobieramy tylko imię, nazwisko i e-mail). Kontynuując, akceptujesz ', legal('Regulamin'), ' i ', legal('Politykę prywatności'), '.');
+    if (TRIAL) {
+      // demo link: one accent button instead of Google, no "no Google account" line; the note explains where the data lives
+      authEl.classList.add('is-trial');
+      $('#auth-google-lbl').textContent = 'Zobacz wersję demo';
+      $('#auth-note').replaceChildren('To wersja demo — bez logowania i bez zakładania konta. Wszystko, co dodasz, także zdjęcia i pliki, zapisuje się tylko w tej przeglądarce na tym urządzeniu: nie wysyłamy tego na nasze serwery i nie zobaczysz tego na innym urządzeniu ani w innej przeglądarce. Dane znikną, jeśli wyczyścisz dane przeglądarki albo użyjesz okna prywatnego. Kontynuując, akceptujesz ', legal('Regulamin'), ' i ', legal('Politykę prywatności'), '.');
+    }
   }
   function showAuth() {
     paintAuth(); closeNavMenu(false); closePop();
@@ -8727,6 +8835,7 @@ window.MAIDAY_APP.pl = () => {
   }
   function hideAuth() {
     authEl.hidden = true; document.documentElement.classList.remove('auth-open');
+    if (TRIAL) { try { localStorage.setItem('maiday.trial.in', '1'); } catch (e) {} toast('Miłego planowania!', 2500); return; }
     toast('Witaj, ' + PROFILE.name.split(' ')[0] + '!', 2500);
   }
   // slot for Google's official mark: the Google Identity Services button replaces this element at deployment
@@ -8778,8 +8887,8 @@ window.MAIDAY_APP.pl = () => {
     const body = settingsBody(() => closeNavMenu(false)), legal = body.findIndex(n => n.classList && n.classList.contains('set-legal'));
     // phone: "Wyloguj" and "Usuń konto" sit just before Regulamin / Polityka prywatności
     body.splice(legal < 0 ? body.length : legal, 0,
-      h('button', { type: 'button', class: 'nav-item nav-logout', onclick: () => showAuth('login') }, logoutIcon(), h('span', {}, 'Wyloguj')),
-      h('button', { type: 'button', class: 'nav-item nav-delete', onclick: () => { closeNavMenu(false); deleteAccount(); } }, deleteIcon(), h('span', {}, 'Usuń konto')),
+      h('button', { type: 'button', class: 'nav-item nav-logout', onclick: () => showAuth('login') }, logoutIcon(), h('span', {}, TRIAL ? 'Zakończ demo' : 'Wyloguj')),
+      h('button', { type: 'button', class: 'nav-item nav-delete', onclick: () => { closeNavMenu(false); deleteAccount(); } }, deleteIcon(), h('span', {}, TRIAL ? 'Wyczyść dane demo' : 'Usuń konto')),
       h('div', { class: 'set-sep', role: 'separator' }));
     openNavPage('Ustawienia', '.nav-settings', h('div', { class: 'set-pop nav-set' }, ...body));
   }
@@ -10027,7 +10136,7 @@ window.MAIDAY_APP.pl = () => {
         h('button', { type: 'button', class: 'pgw-cov none', 'aria-pressed': String(!d.cover), title: 'Bez tła', 'aria-label': 'Bez tła', onclick: () => { d.cover = null; paintWizard(); } }, luSvg('Ban', 1.6) || svg(ICON_X)),
         ...Object.entries(COVERS).map(([k, v]) => h('button', { type: 'button', class: 'pgw-cov' + (k.startsWith('art-') ? ' art' : ''), style: 'background: ' + v, 'aria-pressed': String(!!d.cover && d.cover.type === 'color' && d.cover.value === k), title: COVER_PL[k], 'aria-label': 'Tło: ' + COVER_PL[k], onclick: () => { d.cover = { type: 'color', value: k }; paintWizard(); } })),
         d.cover && d.cover.type === 'image' ? h('button', { type: 'button', class: 'pgw-cov', style: coverStyle(d.cover), 'aria-pressed': 'true', title: 'Twoje zdjęcie', 'aria-label': 'Tło: Twoje zdjęcie' }) : null,
-        h('button', { type: 'button', class: 'pgw-cov up', disabled: !assetsApi || null, title: assetsApi ? 'Wgraj zdjęcie' : 'Wgrywanie działa w zapisanej wersji Maiday w Claude', 'aria-label': 'Wgraj zdjęcie',
+        h('button', { type: 'button', class: 'pgw-cov up', disabled: !assetsApi || null, title: assetsApi ? 'Wgraj zdjęcie' : TRIAL ? TRIAL_UP : 'Wgrywanie działa w zapisanej wersji Maiday w Claude', 'aria-label': 'Wgraj zdjęcie',
           onclick: () => uploadCover(c => { if (pg) { pg.draft.cover = c; paintWizard(); } }) }, luSvg('ImagePlus', 1.6) || svg('<path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>')));
     // the page header edited in place: background band (same proportions as on the page), icon button and the name
     out.splice(heroIdx, 0, h('section', { class: 'pgw-sec pgw-hero' },
@@ -10580,7 +10689,7 @@ window.MAIDAY_APP.pl = () => {
     box.classList.add('fl-init'); sync(); place();
     requestAnimationFrame(() => requestAnimationFrame(() => box.classList.remove('fl-init')));
   }
-  const FLOAT_SEL = 'input[placeholder]:not([type="hidden"]):not([type="color"]), textarea[placeholder], input[data-label]';
+  const FLOAT_SEL = 'input[placeholder]:not([type="hidden"]):not([type="color"]), textarea[placeholder], input[data-label], textarea[data-label]';
   document.querySelectorAll(FLOAT_SEL).forEach(floatify);
   new MutationObserver(muts => {
     for (const m of muts) for (const n of m.addedNodes) {
@@ -10595,6 +10704,8 @@ window.MAIDAY_APP.pl = () => {
   if (!isView(startView)) { try { startView = localStorage.getItem('maiday.view') || 'dashboard'; } catch (e) { startView = 'dashboard'; } }
   setView(startView);
   connect();
+  // demo link: the start screen shows until the visitor enters the demo once in this browser
+  if (TRIAL) { let seen = false; try { seen = !!localStorage.getItem('maiday.trial.in'); } catch (e) {} if (!seen) showAuth(); }
   // called by the language loader before it starts the app in the other language
   return () => { flushNote(); disposed = true; clearTimeout(trTimer); unsubs.forEach(u => { try { u(); } catch (e) {} }); };
 };
@@ -10781,6 +10892,10 @@ window.MAIDAY_APP.en = () => {
   }
   const setRaw = (c, obj) => { R[c].set(obj.id, obj); S[c].set(obj.id, overlay(c, obj)); };
   const dropRaw = (c, id) => { R[c].delete(id); S[c].delete(id); };
+  // TRIAL = the standalone demo build (separate link): no sign-in, no account, nothing sent to a server — data stays only in this browser (localStorage)
+  const TRIAL = false;
+  const TRIAL_UP = 'This browser can’t store photos or files for the demo.';
+  const TRIAL_URLS = new Map(); // demo: asset id -> object URL of the file kept in this browser (IndexedDB)
   let mode = 'local', refs = null, readOnly = false;
   const LS = 'maiday.v1';
 
@@ -10839,7 +10954,38 @@ window.MAIDAY_APP.en = () => {
   // One connection to the saved data for the whole page: when the language is switched, the new app instance
   // reuses it (no second `use('db')`, no unsubscribe / re-subscribe), so the data never has to be fetched again.
   const HUB = window.MAIDAY_HUB || (window.MAIDAY_HUB = { conn: null, subscribed: {}, last: {}, err: {}, fns: {}, cleared: {} });
+  // ---- demo files: photos and attachments are kept in this browser's IndexedDB (same interface as the account file store) ----
+  function trialFiles() {
+    if (!window.indexedDB) return;
+    let dbp = null;
+    const db = () => dbp || (dbp = new Promise((res, rej) => { const r = indexedDB.open('maiday-trial-files', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('files', { keyPath: 'id' }); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }));
+    const tx = (mode, fn) => db().then(d => new Promise((res, rej) => { const t = d.transaction('files', mode), st = t.objectStore('files'); const out = fn(st);
+      t.oncomplete = () => res(out && out.result); t.onerror = t.onabort = () => rej(t.error); }));
+    const newId = () => Array.from(crypto.getRandomValues(new Uint8Array(18)), b => 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_'[b & 63]).join('');
+    const api = {
+      async upload(file, opts = {}) {
+        const type = opts.type || file.type || 'application/octet-stream';
+        if (file.size > (type === 'image/svg+xml' ? 2 : 20) * 1048576) throw { code: 'too_large' };
+        const id = newId(), blob = file.slice(0, file.size, type);
+        try { await tx('readwrite', st => st.put({ id, blob, type, name: file.name || '', size: file.size, created: Date.now() })); }
+        catch (e) { throw { code: e && e.name === 'QuotaExceededError' ? 'quota_or_state' : 'store_unavailable' }; }
+        TRIAL_URLS.set(id, URL.createObjectURL(blob));
+        try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
+        return { id, contentType: type, sizeBytes: file.size };
+      },
+      async delete(id) { await tx('readwrite', st => st.delete(id)); const u = TRIAL_URLS.get(id); if (u) { URL.revokeObjectURL(u); TRIAL_URLS.delete(id); } }
+    };
+    tx('readonly', st => st.getAll()).then(rows => {
+      for (const r of rows || []) if (r && r.id && r.blob) TRIAL_URLS.set(r.id, URL.createObjectURL(r.blob));
+      if (disposed) return;
+      assetsApi = api; updateUploadUI(); render();
+      // pictures already on screen (e.g. inside an open note) point at the files now
+      document.querySelectorAll('img[data-asset]').forEach(img => { const u = TRIAL_URLS.get(img.dataset.asset); if (u) img.src = u; });
+    }).catch(() => {});
+  }
   async function connect() {
+    if (TRIAL) { trialFiles(); return; } // demo: stays in local mode, never connects to the account store; files live in IndexedDB
     if (!window.claude || typeof window.claude.use !== 'function') return;
     try {
       if (!HUB.conn) HUB.conn = (async () => {
@@ -11645,7 +11791,7 @@ window.MAIDAY_APP.en = () => {
     if (!text) setFieldError($('#task-text'), 'Enter a task title. It’s the only required field.', timeOk && durOk);
     if (!timeOk || !durOk || !text) return;
     draft.desc = $('#draft-desc').value;
-    put('tasks', { id: uid(), date: sel, time: $('#task-time').value || '', text, desc: draft.desc.trim(), labels: draft.labels.slice(),
+    put('tasks', { id: uid(), date: taskFormInCal() ? calDate : sel, time: $('#task-time').value || '', text, desc: draft.desc.trim(), labels: draft.labels.slice(),
       images: draft.images.slice(), files: draft.files.slice(), links: draft.links.slice(), repeat: draft.repeat ? { ...draft.repeat } : null, dur: draft.dur || 0, items: draft.items.slice(), done: false, created: Date.now(),
       ...(draft.days > 1 && !$('#task-draft').hidden ? { days: draft.days, time: '', dur: 0, repeat: null } : {}) });
     resetDraft(false);
@@ -11670,7 +11816,7 @@ window.MAIDAY_APP.en = () => {
     box.replaceChildren(...[
       list.length ? h('ul', { class: 'cl-list' }, list.map(it => h('li', { class: 'cl-item' + (it.done ? ' done' : ''),
         onclick: e => { if (e.target.closest('button, input')) return; set(list.map(x => x.id === it.id ? { ...x, done: !x.done } : x)); } },
-        h('input', { type: 'checkbox', checked: !!it.done, 'aria-label': (it.done ? 'Uncheck: ' : 'Check: ') + it.text,
+        h('input', { type: 'checkbox', class: 'tl-check cl-check', checked: !!it.done, 'aria-label': (it.done ? 'Uncheck: ' : 'Check: ') + it.text,
           onchange: e => set(list.map(x => x.id === it.id ? { ...x, done: e.target.checked } : x)) }),
         h('span', { class: 'cl-text' }, it.text),
         opts.readonlyRemove ? null : h('button', { type: 'button', class: 'tool danger cl-x', title: 'Remove item', 'aria-label': 'Remove item: ' + it.text,
@@ -11776,7 +11922,7 @@ window.MAIDAY_APP.en = () => {
   const ICON_DOC = '<path d="M4 2.5h5.5l3 3v8H4z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>';
   const ICON_PLUS = '<path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>';
   const ASSET_ID = /^[A-Za-z0-9_-]{8,64}$/;
-  const blobUrl = id => '/_blob/' + id;
+  const blobUrl = id => (TRIAL && TRIAL_URLS.get(id)) || '/_blob/' + id;
   // covers offered in the pickers: 4 colours + 4 graphics (files published next to the page, in covers/)
   const art = f => `url("covers/${f}.webp?v=2") center / cover no-repeat border-box, #DDD`;
   const COVERS = {
@@ -11910,7 +12056,7 @@ window.MAIDAY_APP.en = () => {
   }
   const isInlineImage = t => /^image\/(png|jpeg|gif|webp|svg\+xml)$/.test(t || '');
   async function upload(file) {
-    if (!assetsApi) { toast('Adding images and files works in the saved version of Maiday in Claude.'); return null; }
+    if (!assetsApi) { toast(TRIAL ? TRIAL_UP : 'Adding images and files works in the saved version of Maiday in Claude.'); return null; }
     const type = typeOf(file);
     if (!type) { toast(`Can’t add “${file.name}”. ${SUPPORTED_MSG}`, 7000); return null; }
     busy(1);
@@ -11941,7 +12087,7 @@ window.MAIDAY_APP.en = () => {
     document.querySelectorAll('.up').forEach(b => {
       b.disabled = !assetsApi;
       const nm = b.getAttribute('aria-label') || ((b.querySelector('.ff-lbl') || b).textContent || '').trim();
-      if (assetsApi) { if (nm) b.title = nm; else b.removeAttribute('title'); } else b.title = 'Images and files work in the saved version of Maiday in Claude';
+      if (assetsApi) { if (nm) b.title = nm; else b.removeAttribute('title'); } else b.title = TRIAL ? TRIAL_UP : 'Images and files work in the saved version of Maiday in Claude';
     });
   }
 
@@ -12008,7 +12154,7 @@ window.MAIDAY_APP.en = () => {
     openPop(anchor, h('div', { class: 'pop-body' },
       h('span', { class: 'pop-title' }, 'Cover'),
       h('div', { class: 'swatches' }, Object.entries(COVERS).map(([k, v]) => h('button', { type: 'button', class: k.startsWith('art-') ? 'art' : null, style: 'background: ' + v, 'aria-label': 'Cover: ' + COVER_PL[k], title: COVER_PL[k], onclick: () => { closePop(); onPick({ type: 'color', value: k }); } }))),
-      h('button', { class: 'btn up', type: 'button', 'aria-label': 'Upload image', disabled: !assetsApi, title: assetsApi ? '' : 'Uploading works in the saved version of Maiday in Claude', onclick: () => { closePop(); onUpload(); } }, 'Upload image'),
+      h('button', { class: 'btn up', type: 'button', 'aria-label': 'Upload image', disabled: !assetsApi, title: assetsApi ? '' : TRIAL ? TRIAL_UP : 'Uploading works in the saved version of Maiday in Claude', onclick: () => { closePop(); onUpload(); } }, 'Upload image'),
       current ? h('button', { class: 'textbtn', type: 'button', onclick: () => { closePop(); onPick(null); } }, 'Remove cover') : null
     ), 'Choose a cover');
   }
@@ -12854,7 +13000,8 @@ window.MAIDAY_APP.en = () => {
     const ico = durWrap.querySelector('.dd-ico'); if (ico) ico.remove(); // the unit select already shows the clock
     const dd = dropdown(usel, ubtn, { label: 'Duration unit', minWidth: 150, itemIcon: v => UNIT_ICO[v],
       onSync: v => { ubtn.querySelector('.dd-label').replaceChildren(svg(UNIT_ICO[v === 'd' ? 'd' : 'h'])); ubtn.title = v === 'd' ? 'Days' : 'Hours'; ubtn.setAttribute('aria-label', 'Duration unit: ' + (v === 'd' ? 'days' : 'hours')); } });
-    usel.addEventListener('change', () => { if (usel.value === 'd') { if (!(cfg.get() > 1)) cfg.set(2); } else cfg.set(0); });
+    let lastDays = 2;
+    usel.addEventListener('change', () => { if (usel.value === 'd') { if (!(cfg.get() > 1)) cfg.set(lastDays); } else { if (cfg.get() > 1) lastDays = +cfg.get(); cfg.set(0); } });
     const ctl = {
       row, range,
       paint() {
@@ -12874,14 +13021,23 @@ window.MAIDAY_APP.en = () => {
   const taskTimeDD = timeField('task-time');
   const calTimeDD = timeField('cal-task-time');
   const draftDurF = timeField('draft-dur', v => { draft.dur = +v || 0; renderDraft(); }, DUR_CFG);
+  // switching "Duration" to days and back keeps what was typed for hours (duration, time, repeat)
+  let draftHoursStash = null;
   const draftSpan = spanCtl($('#draft-dur-wrap'), {
     get: () => draft.days, start: () => sel,
     set: d => {
+      const was = draft.days > 1;
       draft.days = d > 1 ? d : 0;
+      if (draft.days && !was) draftHoursStash = { dur: draft.dur, durV: $('#draft-dur').value, time: $('#task-time').value, repeat: draft.repeat };
       if (draft.days) {
         draft.dur = 0; $('#draft-dur').value = ''; draftDurF.sync();
         draft.repeat = null; draftRep.reset();
         $('#task-time').value = ''; taskTimeDD.sync();
+      } else if (was && draftHoursStash) {
+        const st = draftHoursStash; draftHoursStash = null;
+        draft.dur = st.dur; $('#draft-dur').value = st.durV; draftDurF.sync();
+        $('#task-time').value = st.time; taskTimeDD.sync();
+        draft.repeat = st.repeat; draftRep.reset();
       }
       renderDraft();
     }
@@ -12901,12 +13057,15 @@ window.MAIDAY_APP.en = () => {
   const mdCard = modal.querySelector('.modal-card');
   const mdTimeField = timeField('md-time', v => mdChange({ time: v }));
   const mdDurField = timeField('md-dur', v => mdChange({ dur: +v || 0 }), DUR_CFG);
+  let mdHoursStash = null;
   const mdSpan = spanCtl($('#md-dur-wrap'), {
     get: () => mdDraft ? mdDraft.days : 0, start: () => mdDraft ? mdDraft.date : today,
     set: d => {
       if (!mdEdit) return;
-      const days = d > 1 ? d : 0;
+      const days = d > 1 ? d : 0, was = mdDraft && mdDraft.days > 1;
+      if (days && !was && mdDraft) mdHoursStash = { time: mdDraft.time || '', dur: mdDraft.dur || 0, repeat: mdDraft.repeat || null };
       if (days) { $('#md-time').value = ''; mdTimeField.sync(); $('#md-dur').value = ''; mdDurField.sync(); }
+      if (!days && was && mdHoursStash) { const st = mdHoursStash; mdHoursStash = null; $('#md-time').value = st.time; mdTimeField.sync(); $('#md-dur').value = st.dur ? String(st.dur) : ''; mdDurField.sync(); mdChange({ days: 0, time: st.time, dur: st.dur, repeat: st.repeat }); return; }
       mdChange(days ? { days, time: '', dur: 0, repeat: null } : { days: 0 });
     }
   });
@@ -13690,7 +13849,18 @@ window.MAIDAY_APP.en = () => {
   function setMode(m) { calMode = m; try { localStorage.setItem('maiday.calmode', m); } catch (e) {} renderCalendar(); }
   const openDay = k => { calDate = k; setMode('day'); };
 
+  // the day view of the calendar uses the very same task form as the Dashboard (title, Details with time, duration, repeat… and Dodaj):
+  // the form moves between the two places, so both look and work identically
+  const taskFormHome = { parent: $('#task-form').parentNode, next: $('#task-form').nextSibling };
+  const taskFormInCal = () => !!$('#task-form').closest('#cal-day');
+  function placeTaskForm() {
+    const f = $('#task-form'), inCal = view === 'calendar' && calMode === 'day';
+    $('#cal-task-form').hidden = true;
+    if (inCal && !taskFormInCal()) $('#cal-day .panel-head').after(f);
+    else if (!inCal && taskFormInCal()) taskFormHome.parent.insertBefore(f, taskFormHome.next);
+  }
   function renderCalendar() {
+    placeTaskForm();
     if (dnd && dnd.active) { dnd.dirty = true; return; }
     document.querySelectorAll('.seg button[data-mode]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === calMode)));
     const byDate = tasksByDate(addDays(calDate, -45), addDays(calDate, 45));
@@ -14194,7 +14364,23 @@ window.MAIDAY_APP.en = () => {
     job: { coll: 'jobs', title: 'Job offer', fields: ['company', 'role', 'url', 'posted', 'deadline', 'status', 'desc', 'cv'] },
     cx: { coll: 'rows', title: 'Entry', fields: [] }
   };
-  function recField(label, control, opts = {}) { return h('div', { class: 'rec-f' + (opts.wide ? ' wide' : '') }, h('span', { class: 'rec-l' }, label), control); }
+  function recField(label, control, opts = {}) {
+    // text fields follow the design system: the label sits inside the field and floats up on focus / when filled; the hint shows as placeholder while typing
+    const ctl = control && control.dataset && control.dataset.nofl && (control.tagName === 'TEXTAREA' || (control.tagName === 'INPUT' && /^(text|number|url|email|tel|search)$/.test(control.type))) ? control : null;
+    if (ctl && !opts.caption) {
+      delete ctl.dataset.nofl; ctl.dataset.label = label; if (!ctl.getAttribute('aria-label')) ctl.setAttribute('aria-label', label);
+      return h('div', { class: 'rec-f rec-f-fl' + (opts.wide ? ' wide' : '') }, ctl);
+    }
+    // single dropdown / date button: the label rests on the field's top edge (it always shows a value, e.g. "No status")
+    const one = control && control.classList && (control.classList.contains('rec-sel') || control.classList.contains('rec-date')) && control.querySelectorAll('.dd').length === 1;
+    if (one && !opts.caption) {
+      control.classList.add('fl-box', 'has-value', 'rec-fl-dd');
+      control.append(h('span', { class: 'fl-label', 'aria-hidden': 'true' }, label));
+      const btn = control.querySelector('.dd'); if (btn && !btn.getAttribute('aria-label')) btn.setAttribute('aria-describedby', (btn.id || '') + '-cap');
+      return h('div', { class: 'rec-f rec-f-fl' + (opts.wide ? ' wide' : '') }, h('span', { class: 'sr', id: (btn && btn.id ? btn.id : 'x') + '-cap' }, label), control);
+    }
+    return h('div', { class: 'rec-f' + (opts.wide ? ' wide' : '') }, h('span', { class: 'rec-l' }, label), control);
+  }
   function recSelect(id, options, value, onChange) {
     const sel = h('select', { id, hidden: true }, options.map(([v, l]) => h('option', { value: v }, l)));
     const btn = h('button', { type: 'button', class: 'dd', id: id + '-btn', 'aria-haspopup': 'listbox', 'aria-expanded': 'false' }, h('span', { class: 'dd-label' }), svg('<path d="m4 6 4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>'));
@@ -14682,6 +14868,7 @@ window.MAIDAY_APP.en = () => {
     if (edExpanded) setExpanded(false);
     view = v;
     for (const x of VIEWS) $('#view-' + x).hidden = x !== v;
+    placeTaskForm();
     $('#view-cx').hidden = !v.startsWith('p:');
     if (CX_READY) paintNav();
     document.querySelectorAll('.tab, .nav-item').forEach(t => t.setAttribute('aria-current', t.dataset.view === v ? 'page' : 'false'));
@@ -14833,6 +15020,7 @@ window.MAIDAY_APP.en = () => {
 
   // ---- profile (sample data until Google sign-in is wired up) ----
   const PROFILE = { name: 'Julia Jędrzejczak', email: 'j.jedrzejczak@gmail.com' };
+  if (TRIAL) Object.assign(PROFILE, { name: 'Demo version', email: 'Data only in this browser' });
   const profileBits = () => [
     h('span', { class: 'pf-ava', 'aria-hidden': 'true' }, luSvg('User', 1.9) || svg('<circle cx="8" cy="5.5" r="2.7" stroke="currentColor" stroke-width="1.4"/><path d="M3 13.5c.8-2.4 2.7-3.6 5-3.6s4.2 1.2 5 3.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>')),
     h('span', { class: 'pf-txt' }, h('b', {}, PROFILE.name), h('small', {}, PROFILE.email))];
@@ -14844,10 +15032,15 @@ window.MAIDAY_APP.en = () => {
   const deleteIcon = () => luSvg('UserX', 1.9) || svg('<circle cx="6.5" cy="5.5" r="2.7" stroke="currentColor" stroke-width="1.4"/><path d="M1.8 13.5c.7-2.3 2.5-3.6 4.7-3.6 1.2 0 2.3.4 3.1 1M11 9.5l3 3M14 9.5l-3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>');
   // Deleting the account removes every saved record and uploaded file (the Google account itself is untouched; at deployment this also calls the server)
   function deleteAccount() {
-    confirmDialog({
+    confirmDialog(Object.assign(TRIAL ? {
+      title: 'Clear the demo data?',
+      message: 'We’ll remove everything you added in the demo in this browser: tasks, habits, notes, lists, tabs, photos and files. This can’t be undone.',
+      confirm: 'Clear data',
+    } : {
       title: 'Delete your account?',
       message: 'We will delete your Maiday account and all your data: tasks, habits, notes, resources and job offers, including uploaded photos and files. This can’t be undone. If you want to keep anything, make a backup first.',
       confirm: 'Delete account',
+    }, {
       onConfirm: () => {
         const ids = new Set();
         const walk = (v, key) => {
@@ -14859,17 +15052,17 @@ window.MAIDAY_APP.en = () => {
         for (const c of COLLS) for (const r of [...S[c].values()]) { walk(r); del(c, r.id); }
         dropAssets([...ids]);
         showAuth('login');
-        toast('Your account and all data have been deleted.', 3500);
+        toast(TRIAL ? 'The demo data has been removed.' : 'Your account and all data have been deleted.', 3500);
       }
-    });
+    }));
   }
   pfBtn.addEventListener('click', e => {
     const b = e.currentTarget;
     if (!pop.hidden && popAnchor === b) { closePop(); b.setAttribute('aria-expanded', 'false'); return; }
     b.setAttribute('aria-expanded', 'true');
     openPop(b, h('div', { class: 'pf-pop', role: 'menu' },
-      h('button', { type: 'button', class: 'pf-logout', role: 'menuitem', onclick: () => { closePop(); b.setAttribute('aria-expanded', 'false'); showAuth('login'); } }, logoutIcon(), 'Log out'),
-      h('button', { type: 'button', class: 'pf-logout pf-delete', role: 'menuitem', onclick: () => { closePop(); b.setAttribute('aria-expanded', 'false'); deleteAccount(); } }, deleteIcon(), 'Delete account')), 'Profile');
+      h('button', { type: 'button', class: 'pf-logout', role: 'menuitem', onclick: () => { closePop(); b.setAttribute('aria-expanded', 'false'); showAuth('login'); } }, logoutIcon(), TRIAL ? 'Leave the demo' : 'Log out'),
+      h('button', { type: 'button', class: 'pf-logout pf-delete', role: 'menuitem', onclick: () => { closePop(); b.setAttribute('aria-expanded', 'false'); deleteAccount(); } }, deleteIcon(), TRIAL ? 'Clear demo data' : 'Delete account')), 'Profile');
     const lo = pop.querySelector('.pf-logout'); if (lo) lo.focus();
   });
 
@@ -14883,6 +15076,12 @@ window.MAIDAY_APP.en = () => {
     $('#auth-google-lbl').textContent = 'Continue with Google';
     const legal = label => legalLink(label === 'Terms of Service' ? 'terms' : 'privacy', label);
     $('#auth-note').replaceChildren('You sign in with your Google account \u2014 on your first visit we’ll create your Maiday account (we only use your name and email). By continuing, you accept the ', legal('Terms of Service'), ' and ', legal('Privacy Policy'), '.');
+    if (TRIAL) {
+      // demo link: one accent button instead of Google, no "no Google account" line; the note explains where the data lives
+      authEl.classList.add('is-trial');
+      $('#auth-google-lbl').textContent = 'See the demo';
+      $('#auth-note').replaceChildren('This is the demo — no sign-in and no account. Everything you add, photos and files included, is saved only in this browser on this device: we don’t send it to our servers, and you won’t see it on another device or in another browser. The data disappears if you clear your browser data or use a private window. By continuing, you accept the ', legal('Terms of Service'), ' and ', legal('Privacy Policy'), '.');
+    }
   }
   function showAuth() {
     paintAuth(); closeNavMenu(false); closePop();
@@ -14891,6 +15090,7 @@ window.MAIDAY_APP.en = () => {
   }
   function hideAuth() {
     authEl.hidden = true; document.documentElement.classList.remove('auth-open');
+    if (TRIAL) { try { localStorage.setItem('maiday.trial.in', '1'); } catch (e) {} toast('Happy planning!', 2500); return; }
     toast('Welcome, ' + PROFILE.name.split(' ')[0] + '!', 2500);
   }
   // slot for Google's official mark: the Google Identity Services button replaces this element at deployment
@@ -14942,8 +15142,8 @@ window.MAIDAY_APP.en = () => {
     const body = settingsBody(() => closeNavMenu(false)), legal = body.findIndex(n => n.classList && n.classList.contains('set-legal'));
     // phone: "Log out" and "Delete account" sit just before Regulamin / Privacy Policy
     body.splice(legal < 0 ? body.length : legal, 0,
-      h('button', { type: 'button', class: 'nav-item nav-logout', onclick: () => showAuth('login') }, logoutIcon(), h('span', {}, 'Log out')),
-      h('button', { type: 'button', class: 'nav-item nav-delete', onclick: () => { closeNavMenu(false); deleteAccount(); } }, deleteIcon(), h('span', {}, 'Delete account')),
+      h('button', { type: 'button', class: 'nav-item nav-logout', onclick: () => showAuth('login') }, logoutIcon(), h('span', {}, TRIAL ? 'Leave the demo' : 'Log out')),
+      h('button', { type: 'button', class: 'nav-item nav-delete', onclick: () => { closeNavMenu(false); deleteAccount(); } }, deleteIcon(), h('span', {}, TRIAL ? 'Clear demo data' : 'Delete account')),
       h('div', { class: 'set-sep', role: 'separator' }));
     openNavPage('Settings', '.nav-settings', h('div', { class: 'set-pop nav-set' }, ...body));
   }
@@ -16191,7 +16391,7 @@ window.MAIDAY_APP.en = () => {
         h('button', { type: 'button', class: 'pgw-cov none', 'aria-pressed': String(!d.cover), title: 'No background', 'aria-label': 'No background', onclick: () => { d.cover = null; paintWizard(); } }, luSvg('Ban', 1.6) || svg(ICON_X)),
         ...Object.entries(COVERS).map(([k, v]) => h('button', { type: 'button', class: 'pgw-cov' + (k.startsWith('art-') ? ' art' : ''), style: 'background: ' + v, 'aria-pressed': String(!!d.cover && d.cover.type === 'color' && d.cover.value === k), title: COVER_PL[k], 'aria-label': 'Background: ' + COVER_PL[k], onclick: () => { d.cover = { type: 'color', value: k }; paintWizard(); } })),
         d.cover && d.cover.type === 'image' ? h('button', { type: 'button', class: 'pgw-cov', style: coverStyle(d.cover), 'aria-pressed': 'true', title: 'Your photo', 'aria-label': 'Background: your photo' }) : null,
-        h('button', { type: 'button', class: 'pgw-cov up', disabled: !assetsApi || null, title: assetsApi ? 'Upload image' : 'Uploading works in the saved version of Maiday in Claude', 'aria-label': 'Upload image',
+        h('button', { type: 'button', class: 'pgw-cov up', disabled: !assetsApi || null, title: assetsApi ? 'Upload image' : TRIAL ? TRIAL_UP : 'Uploading works in the saved version of Maiday in Claude', 'aria-label': 'Upload image',
           onclick: () => uploadCover(c => { if (pg) { pg.draft.cover = c; paintWizard(); } }) }, luSvg('ImagePlus', 1.6) || svg('<path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>')));
     // the page header edited in place: background band (same proportions as on the page), icon button and the name
     out.splice(heroIdx, 0, h('section', { class: 'pgw-sec pgw-hero' },
@@ -16744,7 +16944,7 @@ window.MAIDAY_APP.en = () => {
     box.classList.add('fl-init'); sync(); place();
     requestAnimationFrame(() => requestAnimationFrame(() => box.classList.remove('fl-init')));
   }
-  const FLOAT_SEL = 'input[placeholder]:not([type="hidden"]):not([type="color"]), textarea[placeholder], input[data-label]';
+  const FLOAT_SEL = 'input[placeholder]:not([type="hidden"]):not([type="color"]), textarea[placeholder], input[data-label], textarea[data-label]';
   document.querySelectorAll(FLOAT_SEL).forEach(floatify);
   new MutationObserver(muts => {
     for (const m of muts) for (const n of m.addedNodes) {
@@ -16759,6 +16959,8 @@ window.MAIDAY_APP.en = () => {
   if (!isView(startView)) { try { startView = localStorage.getItem('maiday.view') || 'dashboard'; } catch (e) { startView = 'dashboard'; } }
   setView(startView);
   connect();
+  // demo link: the start screen shows until the visitor enters the demo once in this browser
+  if (TRIAL) { let seen = false; try { seen = !!localStorage.getItem('maiday.trial.in'); } catch (e) {} if (!seen) showAuth(); }
   // called by the language loader before it starts the app in the other language
   return () => { flushNote(); disposed = true; clearTimeout(trTimer); unsubs.forEach(u => { try { u(); } catch (e) {} }); };
 };
