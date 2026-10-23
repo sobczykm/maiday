@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="pl">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -17134,7 +17134,7 @@ window.MAIDAY_APP.en = () => {
   let L = null;
   try { L = localStorage.getItem('maiday.lang'); } catch (e) {}
   if (L !== 'pl' && L !== 'en') try { L = sessionStorage.getItem('maiday.lang'); } catch (e) {}
-  if (L !== 'pl' && L !== 'en') L = 'pl';
+  if (L !== 'pl' && L !== 'en') L = 'en';
   const start = document.getElementById('markup-pl-start'), end = document.getElementById('markup-pl-end');
   const markup = { en: document.getElementById('markup-en') };
   markup.pl = document.createElement('template');

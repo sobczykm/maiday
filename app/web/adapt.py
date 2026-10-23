@@ -247,6 +247,9 @@ DEMO_CHANGES = [
     both("TRIAL flag", "  const TRIAL = false;", "  const TRIAL = true;"),
     both("separate local storage", "  const LS = 'maiday.v1';", "  const LS = 'maiday.trial';"),
     once("title", "<title>Maiday</title>", "<title>Maiday – demo</title>"),
+    # the demo opens in English unless the visitor picked a language before (decision 24.10.2026)
+    once("English by default", "if (L !== 'pl' && L !== 'en') L = 'pl';", "if (L !== 'pl' && L !== 'en') L = 'en';"),
+    once("document language", '<html lang="pl">', '<html lang="en">'),
 ]
 
 
