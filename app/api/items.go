@@ -8,7 +8,8 @@ import (
 	"slices"
 )
 
-var collections = []string{"tasks", "habits", "notes", "folders", "labels", "days", "library", "jobs"}
+// library and jobs are emptied by the app itself: it moves their entries into rows (own tabs "library" / "jobs")
+var collections = []string{"tasks", "habits", "notes", "folders", "labels", "days", "library", "jobs", "pages", "rows"}
 
 const maxItemBytes = 1 << 20
 

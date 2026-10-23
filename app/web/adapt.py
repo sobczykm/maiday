@@ -23,9 +23,6 @@ TEXT = {
     "pl": {
         "profile": "Profil",
         "logout": "Wyloguj",
-        "delete_account": "Usuń konto",
-        "delete_title": "Usunąć konto?",
-        "delete_message": "Usuniemy Twoje konto Maiday i wszystkie dane: zadania, nawyki, notatki, bibliotekę, oferty pracy oraz zdjęcia i pliki. Tej operacji nie można cofnąć. Jeśli chcesz zachować dane, najpierw zapisz kopię zapasową.",
         "delete_failed": "Nie udało się usunąć konta. Spróbuj ponownie za chwilę.",
         "terms": ("Regulamin", "/regulamin"),
         "privacy": ("Prywatność", "/prywatnosc"),
@@ -37,9 +34,6 @@ TEXT = {
     "en": {
         "profile": "Profile",
         "logout": "Log out",
-        "delete_account": "Delete account",
-        "delete_title": "Delete account?",
-        "delete_message": "We’ll delete your Maiday account and all its data: tasks, habits, notes, library, job offers, images and files. This can’t be undone. If you want to keep your data, save a backup first.",
         "delete_failed": "Couldn’t delete the account. Try again in a moment.",
         "terms": ("Terms", "/en/terms"),
         "privacy": ("Privacy", "/en/privacy"),
@@ -68,9 +62,11 @@ def api_client(t):
   }}
   const itemPath = (c, id) => `/api/items/${{c}}/${{encodeURIComponent(id)}}`;
   const apiCollection = c => ({{ doc: id => ({{ set: v => api('PUT', itemPath(c, id), v), delete: () => api('DELETE', itemPath(c, id)) }}) }});
+  let apiLoaded = false; // the app migrates its data (dataReady) only once the account's data is here
   async function loadFromApi() {{
     const data = await api('GET', '/api/items');
     for (const c of COLLS) {{ R[c] = new Map(); S[c] = new Map(); for (const x of data[c] || []) setRaw(c, x); }}
+    apiLoaded = true;
   }}
   const writesInFlight = () => [...queue.values()].some(q => q.running);
   const UPLOAD_ERRORS = {{ 401: 'unauthenticated', 411: 'unsupported_type', 413: 'too_large', 415: 'unsupported_type', 507: 'quota_or_state' }};
@@ -115,20 +111,7 @@ def api_client(t):
 
 
 def account_actions(t):
-    (terms, terms_href), (privacy, privacy_href) = t["terms"], t["privacy"]
-    return f"""  const deleteAccountIcon = () => luSvg('UserX', 1.9) || svg(ICON_TRASH);
-  const legalLinks = () => h('div', {{ class: 'pf-legal' }},
-    h('a', {{ href: '{terms_href}', target: '_blank', rel: 'noopener' }}, '{terms}'),
-    h('a', {{ href: '{privacy_href}', target: '_blank', rel: 'noopener' }}, '{privacy}'));
-  function confirmDeleteAccount() {{
-    confirmDialog({{
-      title: '{t["delete_title"]}',
-      message: '{t["delete_message"]}',
-      confirm: '{t["delete_account"]}',
-      onConfirm: deleteAccount
-    }});
-  }}
-  async function deleteAccount() {{
+    return f"""  async function deleteAccountApi() {{
     try {{ await api('DELETE', '/api/me'); }}
     catch (e) {{ toast('{t["delete_failed"]}', 5000); return; }}
     try {{ Object.keys(localStorage).filter(k => k.startsWith('maiday.')).forEach(k => localStorage.removeItem(k)); }} catch (e) {{}}
@@ -153,19 +136,8 @@ def profile_painter(t):
 """
 
 
-def profile_menu(t):
-    return (f"showAuth('login'); }} }}, logoutIcon(), '{t['logout']}')), '{t['profile']}');",
-            f"logout(); }} }}, logoutIcon(), '{t['logout']}'),\n"
-            f"      inClaude() ? null : h('button', {{ type: 'button', class: 'pf-logout', role: 'menuitem', onclick: () => {{ closePop(); b.setAttribute('aria-expanded', 'false'); confirmDeleteAccount(); }} }}, deleteAccountIcon(), '{t['delete_account']}'),\n"
-            f"      legalLinks()), '{t['profile']}');")
-
-
-def nav_menu_end(t):
-    return (f"onclick: () => showAuth('login') }}, logoutIcon(), h('span', {{}}, '{t['logout']}')));",
-            f"onclick: logout }}, logoutIcon(), h('span', {{}}, '{t['logout']}')));\n"
-            f"  if (!inClaude()) navMenu.append(\n"
-            f"    h('button', {{ type: 'button', class: 'nav-item nav-logout', onclick: () => {{ closeNavMenu(false); confirmDeleteAccount(); }} }}, deleteAccountIcon(), h('span', {{}}, '{t['delete_account']}')),\n"
-            f"    legalLinks());")
+def legal_addresses(t):
+    return f"const LEGAL = {{ terms: '{t['terms'][1]}', privacy: '{t['privacy'][1]}' }};"
 
 
 def session_expired(t):
@@ -191,6 +163,14 @@ def single(name, pairs):
 
 
 CHANGES = [
+    # Julia's export is the body of a Claude artifact; Claude adds the document skeleton when it publishes the page.
+    # Everything of hers goes into <body>: the language loader looks for #markup-pl-start among the body's children
+    # (without an explicit <body> the parser would leave that marker in <head>).
+    once("document skeleton (charset, viewport)",
+         "<title>Maiday</title>\n",
+         '<!doctype html>\n<html lang="pl">\n<head>\n<meta charset="utf-8">\n'
+         '<meta name="viewport" content="width=device-width, initial-scale=1">\n</head>\n<body>\n'
+         "<title>Maiday</title>\n"),
     once("fonts served locally",
          '<link rel="preconnect" href="https://fonts.googleapis.com">\n'
          '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Averia+Serif+Libre:wght@400;700&family=Onest:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">',
@@ -198,12 +178,9 @@ CHANGES = [
     once("Lucide served locally",
          '<script src="https://cdn.jsdelivr.net/npm/lucide@1.48.0/dist/umd/lucide.min.js"></script>',
          '<script src="vendor/lucide-1.48.0.min.js"></script>'),
-    once("legal links in the profile menu (style)",
-         ".pf-logout svg { width: 18px; height: 18px; }",
-         ".pf-logout svg { width: 18px; height: 18px; }\n"
-         ".pf-legal { display: flex; gap: 12px; padding: 6px 8px 2px; border-top: 1px solid var(--line); font-size: 12px; }\n"
-         ".pf-legal a { color: var(--muted); text-decoration: none; }\n"
-         ".pf-legal a:hover { color: var(--ink); text-decoration: underline; }"),
+    once("sign-in background from this site (Julia's points at an asset of the Claude artifact)",
+         'url("/_blob/6bc8030f0f4b61363069d3304a8a069a")',
+         'url("auth-bg.webp")'),
     once("Google mark (style)",
          ".auth-g { display: inline-grid; } .auth-g svg { width: 18px; height: 18px; }",
          ".auth-g { display: inline-grid; place-items: center; } .auth-g svg { width: 20px; height: 20px; }"),
@@ -231,15 +208,19 @@ CHANGES = [
          "  pfBtn.title = PROFILE.name + ' · ' + PROFILE.email;\n", profile_painter(TEXT["en"])),
     ]),
     per_language("logout, account deletion", "  pfBtn.addEventListener('click', e => {", account_actions),
-    *single("profile menu", [profile_menu(TEXT["pl"]), profile_menu(TEXT["en"])]),
-    *single("mobile menu", [nav_menu_end(TEXT["pl"]), nav_menu_end(TEXT["en"])]),
-    both("legal links on the sign-in screen",
-         "const legal = label => h('a', { href: '#', onclick: e => e.preventDefault() }, label);",
-         "const legal = (label, href) => h('a', { href, target: '_blank', rel: 'noopener' }, label);"),
-    once("terms link (pl)", "legal('Regulamin')", "legal('Regulamin', '/regulamin')"),
-    once("privacy link (pl)", "legal('Politykę prywatności')", "legal('Politykę prywatności', '/prywatnosc')"),
-    once("terms link (en)", "legal('Terms of Service')", "legal('Terms of Service', '/en/terms')"),
-    once("privacy link (en)", "legal('Privacy Policy')", "legal('Privacy Policy', '/en/privacy')"),
+    both("account deletion goes through the API",
+         "      onConfirm: () => {\n        const ids = new Set();",
+         "      onConfirm: () => {\n        if (!inClaude()) return deleteAccountApi();\n        const ids = new Set();"),
+    both("logout in the profile menu",
+         "b.setAttribute('aria-expanded', 'false'); showAuth('login'); } }, logoutIcon(),",
+         "b.setAttribute('aria-expanded', 'false'); logout(); } }, logoutIcon(),"),
+    both("logout in the phone menu",
+         "onclick: () => showAuth('login') }, logoutIcon(),",
+         "onclick: logout }, logoutIcon(),"),
+    per_language("legal documents (settings, sign-in screen)", "const LEGAL = { terms: '#', privacy: '#' };", legal_addresses),
+    both("data migrations wait for the account's data (otherwise they run on the empty local state first)",
+         "const dataReady = () => mode === 'local' || COLLS.every(c => HUB.ready && HUB.ready[c]);",
+         "const dataReady = () => inClaude() ? mode === 'local' || COLLS.every(c => HUB.ready && HUB.ready[c]) : apiLoaded;"),
     both("Google sign-in",
          "  $('#auth-google').prepend(h('span', { class: 'auth-g', 'aria-hidden': 'true' }));\n"
          "  $('#auth-google').addEventListener('click', hideAuth);",
@@ -254,18 +235,14 @@ CHANGES = [
         ("'Zdjęcia i pliki działają w zapisanej wersji Maiday w Claude'", "'Zdjęcia i pliki będą dostępne wkrótce'"),
         ("'Images and files work in the saved version of Maiday in Claude'", "'Images and files will be available soon'"),
     ]),
-    *single("cover upload tooltip", [
-        ("'Wgrywanie działa w zapisanej wersji Maiday w Claude'", "'Wgrywanie zdjęć będzie dostępne wkrótce'"),
-        ("'Uploading works in the saved version of Maiday in Claude'", "'Uploading images will be available soon'"),
-    ]),
-    *single("backup note", [
-        ("'Zdjęcia i pliki (PDF, CV) nie są częścią kopii. Zostają zapisane tylko w wersji w Claude.'", "'Zdjęcia i pliki (PDF, CV) nie są częścią kopii.'"),
-        ("'Images and files (PDFs, CVs) aren’t part of the backup. They are stored only in the version in Claude.'", "'Images and files (PDFs, CVs) aren’t part of the backup.'"),
-    ]),
+    both("cover upload tooltip (pl)", "'Wgrywanie działa w zapisanej wersji Maiday w Claude'", "'Wgrywanie zdjęć będzie dostępne wkrótce'"),
+    both("cover upload tooltip (en)", "'Uploading works in the saved version of Maiday in Claude'", "'Uploading images will be available soon'"),
 ]
 
 
 def adapt(html):
+    if html.lstrip().lower().startswith("<!doctype"):
+        sys.exit("Julia's file already has a document skeleton: remove the \"document skeleton\" change from adapt.py")
     problems = []
     for name, old, news in CHANGES:
         parts = html.split(old)
@@ -275,7 +252,7 @@ def adapt(html):
         html = parts[0] + "".join(new + rest for new, rest in zip(news, parts[1:]))
     if problems:
         sys.exit("Julia's version changed where these adaptations apply; update them in adapt.py:\n" + "\n".join(problems))
-    return html
+    return html.rstrip("\n") + "\n</body>\n</html>\n"
 
 
 def main():
